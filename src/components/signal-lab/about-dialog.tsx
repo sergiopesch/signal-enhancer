@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowRight, Info, ShieldCheck, X } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type KeyboardEvent } from "react";
 
 type AboutDialogProps = {
   open: boolean;
@@ -17,16 +17,49 @@ export function AboutDialog({
   onLoadDemo,
 }: Readonly<AboutDialogProps>) {
   const closeRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     if (!open) return;
+    const previouslyFocused = document.activeElement;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
     closeRef.current?.focus();
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.requestAnimationFrame(() => {
+        if (
+          previouslyFocused instanceof HTMLElement &&
+          previouslyFocused.isConnected
+        )
+          previouslyFocused.focus();
+      });
     };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [onClose, open]);
+  }, [open]);
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      onClose();
+      return;
+    }
+    if (event.key !== "Tab") return;
+    const focusable = Array.from(
+      dialogRef.current?.querySelectorAll<HTMLElement>(
+        'button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])',
+      ) ?? [],
+    );
+    const first = focusable[0];
+    const last = focusable.at(-1);
+    if (!first || !last) return;
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  };
 
   if (!open) return null;
 
@@ -37,10 +70,12 @@ export function AboutDialog({
       onMouseDown={(event) => event.target === event.currentTarget && onClose()}
     >
       <section
+        ref={dialogRef}
         className="about-dialog"
         role="dialog"
         aria-modal="true"
         aria-labelledby="about-title"
+        onKeyDown={handleKeyDown}
       >
         <button
           ref={closeRef}

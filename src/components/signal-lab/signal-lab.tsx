@@ -200,6 +200,7 @@ export function SignalLab() {
   const [upgradeEvents, setUpgradeEvents] = useState<UpgradeEvent[]>([]);
   const [upgradeError, setUpgradeError] = useState<string>();
 
+  const appShellRef = useRef<HTMLDivElement>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const referenceRef = useRef<ReferencePlaybackController | null>(null);
   const referenceStartedAtRef = useRef(0);
@@ -208,6 +209,10 @@ export function SignalLab() {
   const captureAbortRef = useRef<AbortController | null>(null);
   const activeStreamRef = useRef<MediaStream | null>(null);
   const playbackSelectionRef = useRef<"original" | "enhanced">("enhanced");
+
+  useEffect(() => {
+    appShellRef.current?.setAttribute("data-hydrated", "true");
+  }, []);
 
   const ensureAudioContext = useCallback(() => {
     audioContextRef.current ??= new AudioContext({
@@ -804,7 +809,7 @@ export function SignalLab() {
   };
 
   return (
-    <div className="app-shell">
+    <div ref={appShellRef} className="app-shell">
       <header className="site-header">
         <button
           className="brand-button"
@@ -818,7 +823,11 @@ export function SignalLab() {
         <button
           className="about-button"
           type="button"
-          onClick={() => setAboutOpen(true)}
+          aria-label="About Signal Enhancer"
+          onClick={(event) => {
+            event.currentTarget.focus();
+            setAboutOpen(true);
+          }}
         >
           <span>About</span>
           <Menu size={22} />

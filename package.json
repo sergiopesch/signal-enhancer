@@ -19,6 +19,7 @@
     "test:e2e": "playwright test",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "visual:capture": "tsx scripts/capture-implementation.ts",
     "db:migrate": "tsx scripts/migrate.ts",
     "reference:generate": "tsx scripts/generate-reference-audio.ts"
   },

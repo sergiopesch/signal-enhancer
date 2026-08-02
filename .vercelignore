@@ -1,0 +1,8 @@
+.github/
+coverage/
+docs/
+playwright-report/
+test-results/
+tests/
+worker/
+src/**/__tests__/

@@ -17,13 +17,13 @@ The public deployment starts in **safe demo mode**: the complete prepared compar
 - Private, object-scoped uploads and downloads with 24-hour expiry
 - Truthful backend-emitted progress—never a fabricated percentage
 
-Accepted visual direction:
+Verified production implementation:
 
-| Setup                                              | Reveal                                               | Upgrade result                                               |
-| -------------------------------------------------- | ---------------------------------------------------- | ------------------------------------------------------------ |
-| ![Setup concept](docs/design/01-setup-capture.png) | ![Reveal concept](docs/design/02-reveal-desktop.png) | ![Upgrade result concept](docs/design/04-upgrade-result.png) |
+| Setup                                                          | Reveal                                                           | Upgrade result                                                                   |
+| -------------------------------------------------------------- | ---------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| ![Implemented setup](docs/implementation/01-setup-desktop.png) | ![Implemented reveal](docs/implementation/02-reveal-desktop.png) | ![Implemented upgrade result](docs/implementation/04-upgrade-result-desktop.png) |
 
-The complete product contract is in [PRODUCT_SPEC.md](docs/PRODUCT_SPEC.md), the visual system in [DESIGN_SYSTEM.md](docs/DESIGN_SYSTEM.md), and the technical decisions in [ARCHITECTURE.md](docs/ARCHITECTURE.md).
+The five original image-generation concepts remain in [`docs/design`](docs/design). The native viewport comparisons, intentional product-honesty differences, and verified interactions are recorded in [FIDELITY_LEDGER.md](docs/FIDELITY_LEDGER.md). The complete product contract is in [PRODUCT_SPEC.md](docs/PRODUCT_SPEC.md), the visual system in [DESIGN_SYSTEM.md](docs/DESIGN_SYSTEM.md), and the technical decisions in [ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Architecture
 
