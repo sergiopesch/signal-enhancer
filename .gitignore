@@ -1,0 +1,38 @@
+# dependencies
+node_modules/
+
+# Next.js
+.next/
+out/
+tsconfig.tsbuildinfo
+
+# Vercel
+.vercel/
+
+# environment files
+.env
+.env.local
+.env.*.local
+
+# tests and coverage
+coverage/
+playwright-report/
+test-results/
+
+# local workflow state
+.workflow/
+
+# Python
+worker/.venv/
+worker/.pytest_cache/
+worker/.ruff_cache/
+worker/**/__pycache__/
+worker/**/*.pyc
+
+# OS/editor
+.DS_Store
+*.swp
+
+# generated scratch data
+tmp/
+/.swc

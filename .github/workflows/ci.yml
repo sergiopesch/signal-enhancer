@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    name: Web quality gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm audit --audit-level=high
+      - run: npm run format:check
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+        env:
+          SIGNAL_MODE: demo
+          NEXT_PUBLIC_SIGNAL_MODE: demo
+          NEXT_PUBLIC_APP_URL: http://localhost:3000
+      - run: npx playwright install --with-deps chromium webkit
+      - run: npm run test:e2e
+        env:
+          SIGNAL_MODE: demo
+          NEXT_PUBLIC_SIGNAL_MODE: demo
+          NEXT_PUBLIC_APP_URL: http://127.0.0.1:3000
+
+  worker:
+    name: Worker quality gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v8
+        with:
+          enable-cache: true
+          cache-dependency-glob: worker/uv.lock
+      - run: uv sync --directory worker --extra dev --frozen
+      - run: uv run --directory worker ruff check .
+      - run: uv run --directory worker mypy
+      - run: uv run --directory worker pytest
+      - name: Build deterministic worker image
+        run: docker build --file worker/Dockerfile --tag signal-enhancer-worker:${GITHUB_SHA} --build-arg SIGNAL_BUILD_REVISION=${GITHUB_SHA} worker

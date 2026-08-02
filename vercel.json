@@ -1,0 +1,16 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "regions": ["dub1"],
+  "functions": {
+    "src/app/api/upgrades/**/events/route.ts": {
+      "supportsCancellation": true
+    }
+  },
+  "crons": [
+    {
+      "path": "/api/internal/cleanup",
+      "schedule": "17 * * * *"
+    }
+  ]
+}

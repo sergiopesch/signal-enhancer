@@ -1,0 +1,59 @@
+{
+  "name": "signal-enhancer",
+  "version": "0.1.0",
+  "private": true,
+  "description": "One sound, two input chains, one honest signal upgrade.",
+  "packageManager": "npm@11.17.0",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint . --max-warnings=0",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "db:migrate": "tsx scripts/migrate.ts",
+    "reference:generate": "tsx scripts/generate-reference-audio.ts"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "1.1.0",
+    "@vercel/blob": "2.6.1",
+    "@vercel/firewall": "1.2.1",
+    "drizzle-orm": "0.45.2",
+    "lucide-react": "1.27.0",
+    "next": "16.2.12",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "workflow": "4.6.2",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.62.0",
+    "@testing-library/react": "16.3.2",
+    "@types/node": "24.13.3",
+    "@types/react": "19.2.17",
+    "@types/react-dom": "19.2.3",
+    "@vitest/coverage-v8": "4.1.10",
+    "@workflow/vitest": "4.0.14",
+    "eslint": "9.39.5",
+    "eslint-config-next": "16.2.12",
+    "jsdom": "29.1.1",
+    "prettier": "3.9.6",
+    "tsx": "4.23.1",
+    "typescript": "6.0.3",
+    "vitest": "4.1.10"
+  },
+  "overrides": {
+    "brace-expansion@^1.1.0": "https://registry.npmjs.org/brace-expansion/-/brace-expansion-1.1.17.tgz",
+    "brace-expansion@^2.0.0": "https://registry.npmjs.org/brace-expansion/-/brace-expansion-2.1.3.tgz",
+    "postcss": "8.5.18",
+    "sharp": "0.35.0"
+  }
+}

@@ -1,0 +1,16 @@
+.next/
+.vercel/
+.workflow/
+coverage/
+node_modules/
+playwright-report/
+test-results/
+src/app/.well-known/workflow/
+worker/.venv*/
+worker/.mypy_cache/
+worker/.pytest_cache/
+worker/.ruff_cache/
+worker/**/__pycache__/
+worker/uv.lock
+public/audio/*.wav
+docs/design/*.png
