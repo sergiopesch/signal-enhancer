@@ -22,7 +22,7 @@ Production secrets belong in Vercel and Hugging Face environment settings. Never
 
 ## Data lifetime
 
-Live captures and derived artifacts are private and expire after 24 hours. The hourly cleanup route requires `CRON_SECRET`, deletes known Blob objects first, then cascades expired database records. Hashed abuse-control ledger rows are retained for 35 days.
+Live captures and derived artifacts are private and expire after 24 hours. The cleanup route requires `CRON_SECRET`, deletes known Blob objects first, then cascades expired database records. Live launch requires that route to be called at least hourly; the committed Hobby-compatible demo schedule is daily because demo mode stores no server-side audio. Hashed abuse-control ledger rows are retained for 35 days.
 
 ## Deployment controls
 

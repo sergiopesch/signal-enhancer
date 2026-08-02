@@ -84,7 +84,7 @@ Use a dedicated private Vercel Blob store. Signed URLs introduced in 2026 allow 
 - Result PUT URL: deterministic attempt-scoped pathname, five-minute expiry.
 - Immutable objects; no overwrite in normal processing.
 - An authoritative `HEAD` verifies committed size and MIME before the job starts; the worker then performs bounded RIFF/WAVE validation before inference.
-- Delete originals, previews, results, and reports after 24 hours through a scheduled cleanup workflow.
+- Delete originals, previews, results, and reports after 24 hours through the authenticated cleanup route. Live launch requires an hourly-or-faster scheduler; the safe Hobby demo uses daily no-op housekeeping because it stores no server audio.
 - Never log signed URLs, Blob tokens, or request bodies.
 
 Initial maximum WAV size is 4 MiB for a 20-second mono 48 kHz PCM16 clip plus safe overhead. Server validation rejects non-WAV content even when MIME and filename appear valid.

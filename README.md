@@ -107,7 +107,9 @@ After provisioning Neon, apply the checked-in migration once:
 npm run db:migrate
 ```
 
-For Vercel, connect this GitHub repository, create an EU Neon database and a dedicated **private** Blob store, set the production variables, and deploy from `main`. The committed `vercel.json` selects `dub1`, enables request cancellation for the resumable stream route, and invokes authenticated artifact cleanup hourly.
+For Vercel, connect this GitHub repository, create an EU Neon database and a dedicated **private** Blob store, set the production variables, and deploy from `main`. The committed `vercel.json` selects `dub1`, enables request cancellation for the resumable stream route, and runs a daily authenticated housekeeping pass that fits the current Hobby demo account.
+
+Before enabling live capture, schedule `/api/internal/cleanup` at least hourly—either with Vercel Pro Cron or an authenticated external scheduler—so objects that reach their 24-hour expiry are removed promptly. The current demo never uploads server-side audio, so its daily task only performs no-op housekeeping.
 
 ## Hugging Face worker
 
@@ -129,7 +131,7 @@ The protected HF gateway bearer and application secret are independent. Endpoint
 
 - No microphone bytes leave the browser until **Upgrade Signal** is pressed.
 - Captures and derivatives use private, short-lived, object-scoped Blob URLs.
-- Sessions, captures, results, and reports expire after 24 hours; an authenticated cron deletes artifacts before cascading database records.
+- Live sessions, captures, results, and reports expire after 24 hours; the authenticated cleanup route deletes artifacts before cascading database records.
 - Signed URLs, credentials, and request bodies are excluded from application logs.
 - Input size, duration, MIME, object path, hash, RIFF structure, codec, channel count, and decoded samples are validated at successive trust boundaries.
 - Global daily and active-job caps are reserved transactionally before GPU work.
