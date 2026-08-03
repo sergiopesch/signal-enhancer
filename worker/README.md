@@ -34,7 +34,7 @@ The exact request/response schemas are defined in
 
 - lowercase UUID job and attempt IDs;
 - literal API schema `"1"` and literal source `"A"`;
-- literal diagnostic reference `{ "id": "diagnostic-speech", "revision": "v1" }`;
+- literal guided-reading protocol `{ "id": "guided-reading-v1", "revision": "1.0.0" }`;
 - explicit Input A/Input B descriptors with byte count and SHA-256;
 - output paths scoped by job and attempt and ending in `enhanced.wav`, `difference.json`, and
   `report.json`;

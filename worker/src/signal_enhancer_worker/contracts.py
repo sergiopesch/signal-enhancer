@@ -46,8 +46,18 @@ class StrictModel(BaseModel):
 
 
 class ReferenceVersion(StrictModel):
-    id: Literal["diagnostic-speech"]
-    revision: Literal["v1"]
+    id: Literal["diagnostic-speech", "guided-reading-v1"]
+    revision: Literal["v1", "1.0.0"]
+
+    @model_validator(mode="after")
+    def require_matching_protocol_revision(self) -> ReferenceVersion:
+        supported_pairs = {
+            ("diagnostic-speech", "v1"),
+            ("guided-reading-v1", "1.0.0"),
+        }
+        if (self.id, self.revision) not in supported_pairs:
+            raise ValueError("reference protocol and revision do not match")
+        return self
 
 
 class SignedGetObject(StrictModel):

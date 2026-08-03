@@ -85,10 +85,17 @@ function workerResult() {
 }
 
 describe("web boundary contracts", () => {
+  it("defaults every session to the guided-reading protocol", () => {
+    expect(createSessionSchema.parse({}).referenceId).toBe("guided-reading-v1");
+    expect(() =>
+      createSessionSchema.parse({ referenceId: "diagnostic-speech-v1" }),
+    ).toThrow();
+  });
+
   it("rejects undeclared session fields", () => {
     expect(() =>
       createSessionSchema.parse({
-        referenceId: "diagnostic-speech-v1",
+        referenceId: "guided-reading-v1",
         admin: true,
       }),
     ).toThrow();

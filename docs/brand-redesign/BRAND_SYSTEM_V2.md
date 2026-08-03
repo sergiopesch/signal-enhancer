@@ -2,13 +2,13 @@
 
 ## Accepted concept set
 
-- `concepts/01-reference-desktop.png` — reference and device setup
-- `concepts/02-reveal-desktop.png` — desktop comparison and evidence
+- `concepts/01-reference-desktop.png` — historical setup composition
+- `concepts/02-reveal-desktop.png` — historical desktop review composition
 - `concepts/03-upgrade-progress-desktop.png` — transparent named-stage processing
 - `concepts/04-upgrade-result-desktop.png` — result and processing receipt
-- `concepts/05-reveal-mobile.png` — responsive comparison
+- `concepts/05-reveal-mobile.png` — historical responsive review composition
 
-The concepts define hierarchy, density, palette, geometry, and responsive intent. Product data, SVG plots, controls, and the final mark remain code-native.
+The concepts define hierarchy, density, palette, geometry, and responsive intent. Product data, SVG plots, controls, and the final mark remain code-native. Where a concept shows the retired played-reference or combined-track interface, the current `guided-reading-v1` product contract below takes precedence.
 
 ## Core idea
 
@@ -54,7 +54,6 @@ Use the display serif in title case. Avoid wide tracking, all caps, and technica
 | `--signal-a-ink`  | `#2b54bd` | accessible Input A on paper             |
 | `--signal-b`      | `#ff654a` | Input B and transformation gate         |
 | `--signal-b-ink`  | `#a83224` | accessible Input B on paper             |
-| `--difference`    | `#55554f` | difference trace                        |
 | `--danger`        | `#f3c969` | warnings only; never A/B identity       |
 
 Rules:
@@ -95,36 +94,47 @@ Uppercase is reserved for genuinely compact instrument labels. Paragraphs and ac
 The public homepage is an **aperture foyer** rather than a compressed experiment screen:
 
 - one wordmark, one premise, one primary action, and one privacy assurance;
-- generous negative space around a single deterministic reference trace;
+- generous negative space around a single finite phase-aperture signal horizon;
 - no workflow stepper, device selectors, permission request, calibration plate, metadata ledger, transport, or application footer before entry;
 - `/lab` is the explicit boundary where the working instrument and audio client begin.
 
-Homepage motion draws the real reference visualization once and then becomes still. The phase-aperture mark is never animated, no sound autoplays, and reduced-motion users receive the settled composition immediately.
+Homepage motion draws the finite signal horizon once and then becomes still. The phase-aperture mark is never animated, no sound autoplays, and reduced-motion users receive the settled composition immediately.
+
+### Guided-reading protocol
+
+- `guided-reading-v1` uses the same versioned 36-word script for Input A and Input B in two separate 20-second passes.
+- A three-second silent count-in precedes each pass; the stored capture begins after the count-in.
+- The reading plate keeps the complete passage visible while highlighting room tone at 0–2 seconds, natural voice at 2–8 seconds, soft voice at 8–14 seconds, and a natural finish at 14–20 seconds.
+- Each completed pass exposes listen, retake, and continue actions before the experiment advances.
+- Input A is identified before capture as the source for **Upgrade Input A**.
 
 ## Component behavior
 
 ### Calibration plate
 
-The ivory plate is the primary working surface. It contains:
+The ivory plate is the primary working surface. In individual review it contains:
 
-- segment labels and shared time ruler;
-- synchronized A/B/difference traces;
+- four guided-reading cue labels and their exact time ranges;
+- one selected Input A or Input B trace;
+- waveform, spectrum, and dynamics tabs with explicit axis units;
 - registration corners and precise bounding rules;
-- an evidence strip for reference, duration, sample rate, mode, and pipeline;
-- a transport band in the same stable location.
+- an evidence strip for protocol, duration, sample rate, and current view;
+- a single-source transport band in the same stable location.
 
 ### Evidence ledger
 
 Findings are ruled statements, not metric cards. Every finding includes:
 
-1. source or observation number;
-2. neutral observed language;
-3. optional expansion for method and interpretation.
+1. an exact guided-reading time range;
+2. neutral observed language and a measured digital value;
+3. a visible qualification for method and interpretation.
+
+The three groups—**What held up**, **Worth inspecting**, and **Measured context**—never become a quality score. Voice delivery, distance, position, room sound, and browser or device processing remain visible limitations.
 
 ### Controls
 
 - Primary controls use a strong filled or high-contrast ruled treatment.
-- A/B controls use a narrow source rail plus explicit A/B text.
+- Input A/Input B controls are semantic tabs. Switching tabs stops playback before selecting the next source, so only one recording is heard or plotted at a time.
 - Selected tabs are indicated by contrast, underline/rule, and `aria-selected`, never color alone.
 - Disabled states retain legible labels and expose why the action is unavailable in nearby copy.
 
@@ -140,7 +150,7 @@ Findings are ruled statements, not metric cards. Every finding includes:
 - Controls: `160–220 ms`.
 - Panel/state transitions: `240–320 ms`.
 - Evidence draw or settling: `600–900 ms`, once per reveal.
-- Playback cursor is synchronized to real audio.
+- The playback cursor follows the selected source’s real audio.
 - Processing scan follows the named current stage.
 - No pulsing logo, ambient waveform drift, particles, or perpetual equalizer bars.
 - `prefers-reduced-motion` removes nonessential transforms and drawing animation while retaining every state.
@@ -150,7 +160,7 @@ Findings are ruled statements, not metric cards. Every finding includes:
 - 44 px minimum interactive targets on touch.
 - 2 px focus ring with 3 px separation from component edges.
 - Text summaries and accessible names for every signal plot.
-- A/B identity uses text and trace treatment as well as color.
+- Input identity uses text and trace treatment as well as color.
 - Keyboard playback remains available and visible where useful.
 - Dialogs trap focus, close on Escape, and restore focus.
 - Live processing uses a polite live region.
@@ -158,7 +168,7 @@ Findings are ruled statements, not metric cards. Every finding includes:
 
 ## Copy lock
 
-The existing product specification remains authoritative. The redesign does not add unsupported marketing claims, performance scores, AI magic, ranking language, or decorative proof points. Concept-only metadata such as `REF / SE–001`, `20.0 s`, and `48 kHz` is allowed when it reflects the actual reference and capture.
+The existing product specification remains authoritative. The redesign does not add unsupported marketing claims, performance scores, AI magic, ranking language, or decorative proof points. Runtime metadata uses `guided-reading-v1`, the actual 20-second duration, capture sample rate, selected view, and current playhead. **Upgrade Input A** is the only upgrade action.
 
 ## Concept generation record
 

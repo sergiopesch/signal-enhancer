@@ -27,14 +27,16 @@ sequenceDiagram
 
     B->>V: Start signed anonymous session
     V->>DB: Create expiring session under start-rate bound
+    B->>B: Record Input A, then Input B, as separate guided passes
+    B->>B: User presses Upgrade Input A
     B->>V: Request one bounded grant per capture
     V->>DB: Reserve immutable A/B attempt paths
     V-->>B: Object-scoped, expiring PUT grant
-    B->>Blob: Upload Input A and Input B directly
+    B->>Blob: Upload both separately recorded reading WAVs directly
     B->>V: Commit exact object path and checksum
     V->>Blob: HEAD and validate committed object
     V->>DB: Record first valid commit for each slot
-    B->>V: Request the one deep upgrade
+    B->>V: Finalize the one deep-upgrade request
     V->>DB: Atomically reserve capacity and create job
     V->>W: Start upgrade workflow(jobId)
     V-->>B: 202 + job/run ID
@@ -70,13 +72,17 @@ Versions are pinned in the lockfile. “Latest” never means floating productio
 
 ## Browser audio subsystem
 
-- `navigator.mediaDevices.getUserMedia()` and `enumerateDevices()` for permission and device discovery.
+- `navigator.mediaDevices.getUserMedia()` and `enumerateDevices()` provide permission and device discovery.
 - Requested constraints are conservative; actual `MediaStreamTrack.getSettings()` values are displayed separately.
-- One `AudioContext` and deterministic decoded reference buffer are reused across both captures.
-- A versioned `AudioWorklet` records PCM without blocking the main thread; bounded browser helpers encode mono RIFF/WAVE and calculate analysis frames.
-- Absolute and loudness-matched traces are derived independently so normalized comparison never replaces the original evidence.
-- The browser computes the first reveal before any upload.
-- A deterministic typed-array DSP chain produces a clearly labelled local preview after Upgrade Signal is pressed.
+- `guided-reading-v1` fixes a versioned 36-word passage, a three-second silent count-in, a 20-second capture duration, and four cue ranges: room tone at 0–2 seconds, natural voice at 2–8 seconds, soft voice at 8–14 seconds, and a natural finish at 14–20 seconds.
+- The full passage stays mounted throughout setup and capture. A silent practice timer and cue highlighting guide pacing; no reference audio is decoded or played.
+- A versioned `AudioWorklet` records one pass at a time without blocking the main thread; bounded browser helpers encode mono RIFF/WAVE and calculate analysis frames.
+- A pass more than 50 milliseconds short of the 20-second protocol fails back to retake; only a complete pass exposes the explicit **Listen**, **Retake**, and **Continue** decisions.
+- Individual Input A/Input B tabs pass exactly one source to the review plot and transport. Changing the selected tab stops current playback before selecting the next source.
+- Waveform plots use seconds and linear PCM sample amplitude relative to digital full scale (`-1` to `+1`); spectrum plots use a logarithmic hertz axis and dBFS magnitude; dynamics plots use seconds and RMS dBFS. No per-track peak, RMS, or loudness scaling is applied to the input review.
+- Independent, published thresholds derive cue-ranged findings for room tone, spoken level, natural-to-soft contrast, clipping, headroom, and capture completeness. No peer track is accepted by the assessment function, so it cannot manufacture a leader/loser result.
+- The browser computes both individual assessments before any upload.
+- A deterministic typed-array DSP chain produces a clearly labelled local preview after **Upgrade Input A** is pressed.
 
 ## Private object storage
 
@@ -88,7 +94,7 @@ Use a dedicated private Vercel Blob store. Signed URLs introduced in 2026 allow 
 - Result PUT URL: deterministic attempt-scoped pathname, persisted on the job before any five-minute write grant is issued.
 - Result artifacts remain immutable per processing attempt; overwrite and random suffixes are disabled.
 - An authoritative `HEAD` verifies committed size and any returned MIME metadata before the job starts; the worker then performs bounded RIFF/WAVE validation before inference.
-- Cleanup enumerates both bounded A/B attempt paths, every stored grant/commit path, and the persisted result, difference, and report paths. Objects become eligible for deletion after session expiry; database discovery records remain for a 15-minute write-drain window before cascade so a later cleanup pass can retry interrupted deletion.
+- Cleanup enumerates both bounded A/B attempt paths, every stored grant/commit path, and every persisted result, report, and derived-artifact path. Objects become eligible for deletion after session expiry; database discovery records remain for a 15-minute write-drain window before cascade so a later cleanup pass can retry interrupted deletion.
 - Live launch requires an hourly-or-faster scheduler. The safe Hobby demo uses daily no-op housekeeping because it stores no server audio.
 - Never log signed URLs, Blob tokens, or request bodies.
 
@@ -126,7 +132,7 @@ Workflow step rules:
 
 - `id`, `public_id`, `status`
 - signed-session hash and coarse abuse key hash
-- reference sample ID/version
+- immutable guided-reading protocol ID and persisted revision (`guided-reading-v1` / `1.0.0`)
 - Input A/B reported and user-confirmed device metadata
 - capture-constraint metadata
 - created/updated/expiry timestamps
@@ -151,7 +157,7 @@ Workflow step rules:
 
 - session ID, workflow run ID, state, attempt count
 - selected source (`A` in v1)
-- routing decision; persisted result, report, and difference Blob pathnames
+- routing decision; persisted result, report, and derived-artifact Blob pathnames
 - enhanced-WAV SHA-256
 - before/after/Input B measurements and pipeline/model versions in result metadata
 - sanitized error code/message
@@ -184,8 +190,8 @@ The worker:
 3. validates RIFF/WAVE magic, PCM/float codec, frames, duration, sample rate, channels, decoded sample count, and hashes;
 4. analyzes noise floor, clipping, dynamics, high-frequency roll-off, and reverb proxies;
 5. routes once to the selected restoration engine;
-6. applies restrained high-pass/EQ, gentle compression, de-essing, and loudness match;
-7. generates difference data and the transparent report;
+6. applies restrained high-pass/EQ, gentle compression, de-essing, and bounded output-level control;
+7. generates requested derived evidence and the transparent report;
 8. uploads immutable artifacts through signed PUT URLs;
 9. removes all temporary files in `finally` blocks.
 
@@ -250,6 +256,8 @@ The checked-in GitHub Actions foundation runs:
 Before promoting live inference, the release workflow must additionally produce an SBOM, scan the built digest, publish that immutable digest, and smoke-test it before updating the endpoint. Those paid/live promotion steps are intentionally not triggered by the initial demo pipeline.
 
 Production changes pin the container digest and model commit. The endpoint update remains a deliberate environment promotion, not a floating “latest” deploy.
+
+Protocol rollouts update the worker first. During the `guided-reading-v1` transition, the worker accepts only the exact legacy (`diagnostic-speech` / `v1`) and guided (`guided-reading-v1` / `1.0.0`) pairs; mixed pairs fail validation. The web rejects legacy sessions before capture lookup, quota reservation, workflow start, or worker warm-up. After the 24-hour legacy-session window closes, the compatibility pair can be removed in a dedicated worker release.
 
 ## Environment contract
 

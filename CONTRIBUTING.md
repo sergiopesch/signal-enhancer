@@ -32,7 +32,7 @@ Copy should be calm, precise, and useful to a non-specialist. Prefer â€œshows,â€
 - Live mode must fail closed when any required database, private storage, workflow, worker, or secret configuration is missing.
 - Preserve session ownership, the two-path-attempt non-overwriting capture-grant bound, exact path validation, grant lifetimes bounded by session expiry, bounded payloads, tracked cleanup paths, and the independent Hugging Face gateway and application credentials.
 - Never commit environment files, tokens, database URLs, signed URLs, captured audio, private reports, or production identifiers.
-- Use synthetic fixtures and the deterministic reference asset in tests. Do not attach real recordings to issues or pull requests.
+- Use synthetic guided-reading fixtures and the canonical script/cue protocol in tests. Do not attach real recordings to issues or pull requests.
 - Treat logging changes as security-sensitive: credentials, signed URLs, request bodies, and audio content must stay out of logs.
 
 Suspected vulnerabilities do not belong in public issues. Follow [SECURITY.md](SECURITY.md) and open a private GitHub security advisory.
@@ -106,7 +106,7 @@ Once explicit contributor terms have been published and the maintainer invites a
 - any new environment value, cost, retention, dependency, or threat boundary;
 - any deliberate visual difference from the accepted concept system.
 
-Include current implementation captures for meaningful UI changes. Use synthetic/prepared comparison data, remove local or production identifiers, and never include private audio.
+Include current implementation captures for meaningful UI changes. Use synthetic prepared individual-track-review data, remove local or production identifiers, and never include private audio.
 
 ## Source status
 

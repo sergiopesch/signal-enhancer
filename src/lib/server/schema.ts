@@ -11,6 +11,11 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
+import {
+  GUIDED_READING_ID,
+  GUIDED_READING_VERSION,
+} from "@/lib/audio/reading-passage";
+
 export const experimentSessions = pgTable(
   "experiment_sessions",
   {
@@ -19,7 +24,10 @@ export const experimentSessions = pgTable(
     status: text("status").notNull().default("created"),
     sessionHash: text("session_hash").notNull(),
     networkHash: text("network_hash").notNull(),
-    referenceId: text("reference_id").notNull().default("diagnostic-speech-v1"),
+    referenceId: text("reference_id").notNull().default(GUIDED_READING_ID),
+    referenceRevision: text("reference_revision")
+      .notNull()
+      .default(GUIDED_READING_VERSION),
     deviceMetadata: jsonb("device_metadata")
       .$type<Record<string, unknown>>()
       .notNull()

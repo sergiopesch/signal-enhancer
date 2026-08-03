@@ -32,14 +32,14 @@ export const metadata: Metadata = {
     template: "%s · Signal Enhancer",
   },
   description:
-    "Hear how two input chains shape the same sound, then make one transparent signal upgrade.",
+    "Read one guided passage through two input chains, inspect each capture, then make one transparent signal upgrade.",
   applicationName: "Signal Enhancer",
   manifest: "/manifest.webmanifest",
   icons: [{ rel: "icon", url: "/icon.svg", type: "image/svg+xml" }],
   robots: { index: false, follow: false },
   openGraph: {
     title: "Signal Enhancer",
-    description: "One sound. Two input chains. One honest signal upgrade.",
+    description: "One script. Two capture passes. One honest signal upgrade.",
     type: "website",
   },
 };

@@ -1,311 +1,465 @@
 "use client";
 
-import { ArrowRight, Info, Mic, Play, RotateCcw } from "lucide-react";
-import { useMemo, useState } from "react";
+import {
+  ArrowRight,
+  CheckCircle2,
+  CircleAlert,
+  Info,
+  RotateCcw,
+  ScanLine,
+} from "lucide-react";
+import { useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
+
+import {
+  GUIDED_READING_CUES,
+  GUIDED_READING_DURATION_SECONDS,
+  GUIDED_READING_ID,
+} from "@/lib/audio/reading-passage";
+import {
+  assessIndividualTrack,
+  type IndividualTrackAssessment,
+  type TrackInsight,
+  type TrackInsightTone,
+} from "@/lib/audio/track-assessment";
 
 import {
   InstrumentMetadata,
   InstrumentRegistration,
 } from "./instrument-chrome";
-import { ModeSwitch, ViewTabs } from "./view-switches";
-import { SignalPlot, type PlotTrack, type PlotView } from "./signal-plot";
+import {
+  SignalPlot,
+  type PlotSegment,
+  type PlotTrack,
+  type PlotView,
+} from "./signal-plot";
 import { Transport } from "./transport";
-import type { CaptureRecord, Observation } from "./types";
+import type { CaptureRecord } from "./types";
+import { ViewTabs } from "./view-switches";
+
+type TrackSlot = "A" | "B";
 
 type RevealStageProps = {
   captureA: CaptureRecord;
   captureB: CaptureRecord;
-  observations: readonly Observation[];
   playing: boolean;
+  activeTrack: TrackSlot | null;
   currentTime: number;
   signalMode: "demo" | "live";
-  onPlay: (mode: "A" | "B" | "both") => void;
+  onSelect: (slot: TrackSlot) => void;
+  onPlay: (slot: TrackSlot) => void;
   onSeek: (time: number) => void;
   onRepeat: () => void;
   onUpgrade: () => void;
 };
 
-function matchLevel(
-  values: readonly number[],
-  sourceRmsDb: number,
-  targetRmsDb: number,
-) {
-  const gain = Math.pow(10, (targetRmsDb - sourceRmsDb) / 20);
-  return values.map((value) => Math.max(-1, Math.min(1, value * gain)));
+const TRACK_SLOTS: readonly TrackSlot[] = ["A", "B"];
+
+const READING_SEGMENTS: readonly PlotSegment[] = GUIDED_READING_CUES.map(
+  (cue) => ({
+    label: cue.label,
+    mobileLabel:
+      cue.id === "room-tone" ? "Room" : (cue.label.split(" ")[0] ?? cue.label),
+    startSeconds: cue.startSeconds,
+    endSeconds: cue.endSeconds,
+  }),
+);
+
+function formatDb(value: number) {
+  return Number.isFinite(value) ? `${value.toFixed(1)} dBFS` : "Not measured";
 }
 
-function difference(a: readonly number[], b: readonly number[]) {
-  const length = Math.min(a.length, b.length);
-  return Array.from(
-    { length },
-    (_, index) => ((a[index] ?? 0) - (b[index] ?? 0)) * 0.72,
+function formatTime(seconds: number) {
+  const bounded = Math.max(0, Math.min(99, seconds));
+  return `0:${Math.round(bounded).toString().padStart(2, "0")}`;
+}
+
+function formatRange(startSeconds: number, endSeconds: number) {
+  return `${formatTime(startSeconds)}–${formatTime(endSeconds)}`;
+}
+
+function toneHeading(tone: TrackInsightTone) {
+  if (tone === "strength") return "What held up";
+  if (tone === "attention") return "Worth inspecting";
+  return "Measured context";
+}
+
+function InsightGroup({
+  tone,
+  insights,
+  onSeek,
+}: Readonly<{
+  tone: TrackInsightTone;
+  insights: readonly TrackInsight[];
+  onSeek: (seconds: number) => void;
+}>) {
+  const Icon =
+    tone === "strength"
+      ? CheckCircle2
+      : tone === "attention"
+        ? CircleAlert
+        : Info;
+  return (
+    <section className="track-insight-group" data-tone={tone}>
+      <header>
+        <Icon size={18} aria-hidden="true" />
+        <h2>{toneHeading(tone)}</h2>
+        <span>{insights.length}</span>
+      </header>
+      {insights.length > 0 ? (
+        <div className="track-insight-list">
+          {insights.map((insight) => (
+            <button
+              type="button"
+              className="track-insight"
+              key={insight.id}
+              onClick={() => onSeek(insight.startSeconds)}
+              aria-label={`Jump to ${formatRange(insight.startSeconds, insight.endSeconds)}: ${insight.title}`}
+            >
+              <span className="track-insight-range">
+                {formatRange(insight.startSeconds, insight.endSeconds)}
+              </span>
+              <span className="track-insight-copy">
+                <strong>{insight.title}</strong>
+                <span>{insight.detail}</span>
+              </span>
+              <span className="track-insight-value">
+                {insight.measuredValue}
+              </span>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <p className="track-insight-empty">
+          No measured item crossed this review threshold.
+        </p>
+      )}
+    </section>
   );
 }
 
-function ObservationGlyph({ kind }: Readonly<{ kind: Observation["kind"] }>) {
-  if (kind === "noise") {
-    return (
-      <svg viewBox="0 0 74 28" aria-hidden="true">
-        <path d="M2 19c4-10 7 1 11-8s7 6 12-2 8 11 13 1 8 7 13-2 8 8 12-1 8 4 9-2" />
-        <line x1="1" x2="73" y1="23" y2="23" />
-      </svg>
-    );
-  }
-  if (kind === "dynamics") {
-    return (
-      <svg viewBox="0 0 74 28" aria-hidden="true">
-        <path d="M1 22h9l2-17 4 19 4-11 5 9h9l2-8 4 8h9l2-13 4 13h18" />
-      </svg>
-    );
-  }
+function TrackMetrics({
+  capture,
+  assessment,
+}: Readonly<{
+  capture: CaptureRecord;
+  assessment: IndividualTrackAssessment;
+}>) {
+  const roomTone = assessment.cues.find((cue) => cue.cueId === "room-tone");
   return (
-    <svg viewBox="0 0 74 28" aria-hidden="true">
-      <path d="M1 15c7-19 15-19 22 0s15 19 23 0 15-19 27 0" />
-    </svg>
+    <dl className="track-metrics" aria-label={`Input ${capture.slot} metrics`}>
+      <div>
+        <dt>Whole-capture RMS</dt>
+        <dd>{formatDb(capture.metrics.rmsDb)}</dd>
+      </div>
+      <div>
+        <dt>Highest sample</dt>
+        <dd>{formatDb(capture.metrics.peakDb)}</dd>
+      </div>
+      <div>
+        <dt>Opening room tone</dt>
+        <dd>{formatDb(roomTone?.rmsDbFs ?? Number.NaN)}</dd>
+      </div>
+      <div>
+        <dt>Dynamic-range proxy</dt>
+        <dd>{capture.metrics.dynamicRangeDb.toFixed(1)} dB</dd>
+      </div>
+    </dl>
   );
 }
 
 export function RevealStage({
   captureA,
   captureB,
-  observations,
   playing,
+  activeTrack,
   currentTime,
   signalMode,
+  onSelect,
   onPlay,
   onSeek,
   onRepeat,
   onUpgrade,
 }: Readonly<RevealStageProps>) {
-  const [mode, setMode] = useState<"absolute" | "matched">("absolute");
+  const [selectedSlot, setSelectedSlot] = useState<TrackSlot>("A");
   const [view, setView] = useState<PlotView>("waveform");
+  const generatedId = useId().replace(/:/g, "");
+  const panelId = `track-review-${generatedId}`;
+  const trackTabRefs = useRef(new Map<TrackSlot, HTMLButtonElement>());
+  const captures = useMemo(
+    () => ({ A: captureA, B: captureB }),
+    [captureA, captureB],
+  );
+  const assessments = useMemo(
+    () => ({
+      A: assessIndividualTrack(captureA.samples, captureA.sampleRate, "A"),
+      B: assessIndividualTrack(captureB.samples, captureB.sampleRate, "B"),
+    }),
+    [captureA, captureB],
+  );
+  const capture = captures[selectedSlot];
+  const assessment = assessments[selectedSlot];
+  const selectedPlaying = playing && activeTrack === selectedSlot;
+  const plotTracks = useMemo<readonly PlotTrack[]>(
+    () => [
+      {
+        id: `capture-${selectedSlot.toLowerCase()}`,
+        label: `Input ${selectedSlot}`,
+        color: selectedSlot === "A" ? "cyan" : "amber",
+        samples: capture.waveform,
+        spectrum: capture.spectrum,
+        spectrumFrequenciesHz: capture.spectrumFrequenciesHz,
+        dynamics: capture.dynamics,
+      },
+    ],
+    [capture, selectedSlot],
+  );
 
-  const tracks = useMemo<PlotTrack[]>(() => {
-    const targetRms = Math.max(captureA.metrics.rmsDb, captureB.metrics.rmsDb);
-    const a =
-      mode === "matched"
-        ? matchLevel(captureA.waveform, captureA.metrics.rmsDb, targetRms)
-        : captureA.waveform;
-    const b =
-      mode === "matched"
-        ? matchLevel(captureB.waveform, captureB.metrics.rmsDb, targetRms)
-        : captureB.waveform;
-    return [
-      {
-        id: "a",
-        label: "A",
-        color: "cyan",
-        samples: a,
-        spectrum: captureA.spectrum,
-      },
-      {
-        id: "b",
-        label: "B",
-        color: "amber",
-        samples: b,
-        spectrum: captureB.spectrum,
-      },
-      {
-        id: "difference",
-        label: "Diff",
-        color: "neutral",
-        samples: difference(a, b),
-      },
-    ];
-  }, [captureA, captureB, mode]);
+  const selectTrack = (slot: TrackSlot) => {
+    if (slot === selectedSlot) return;
+    onSelect(slot);
+    setSelectedSlot(slot);
+  };
+
+  const handleTrackKeyDown = (
+    event: KeyboardEvent<HTMLButtonElement>,
+    index: number,
+  ) => {
+    let nextIndex: number | undefined;
+    if (event.key === "ArrowRight")
+      nextIndex = (index + 1) % TRACK_SLOTS.length;
+    if (event.key === "ArrowLeft")
+      nextIndex = (index - 1 + TRACK_SLOTS.length) % TRACK_SLOTS.length;
+    if (event.key === "Home") nextIndex = 0;
+    if (event.key === "End") nextIndex = TRACK_SLOTS.length - 1;
+    if (nextIndex === undefined) return;
+    event.preventDefault();
+    const nextSlot = TRACK_SLOTS[nextIndex];
+    if (!nextSlot) return;
+    selectTrack(nextSlot);
+    trackTabRefs.current.get(nextSlot)?.focus();
+  };
+
+  const insightsFor = (tone: TrackInsightTone) =>
+    assessment.insights.filter((insight) => insight.tone === tone);
 
   return (
-    <section className="stage stage-reveal" aria-labelledby="reveal-title">
-      <header className="reveal-heading">
+    <section
+      className="stage stage-reveal track-review"
+      aria-labelledby="reveal-title"
+    >
+      <header className="track-review-heading">
         <div>
-          <h1 id="reveal-title">Same sound. Different ears.</h1>
+          <p className="instrument-label">Individual capture review</p>
+          <h1 id="reveal-title" tabIndex={-1}>
+            One input under the lens.
+          </h1>
           <p>
-            Two input chains, held against the same reference. Explore what
-            changed—not which one won.
+            Inspect each recording on its own timeline. Switching inputs stops
+            the current playback, so the two recordings never play together.
           </p>
-          <div className="mobile-device-key">
-            <span>
-              <i data-color="cyan" />A · {captureA.deviceLabel}
-            </span>
-            <span>
-              <i data-color="amber" />B · {captureB.deviceLabel}
-            </span>
-          </div>
         </div>
-        <ModeSwitch mode={mode} onChange={setMode} />
-        <ViewTabs view={view} onChange={setView} />
+        <div className="track-review-protocol">
+          <ScanLine size={18} aria-hidden="true" />
+          <span>
+            Same script · two separate passes
+            <small>{GUIDED_READING_ID}</small>
+          </span>
+        </div>
       </header>
 
-      <div className="reveal-layout">
-        <aside className="reveal-rail">
-          <div className="source-list">
-            <div>
-              <p>
-                <strong>Input A</strong>
-                <span> · {captureA.deviceLabel}</span>
-              </p>
-              <button
-                className="button button-secondary source-play"
-                type="button"
-                onClick={() => onPlay("A")}
-              >
-                <Mic size={18} /> Play Input A <kbd>A</kbd>
-              </button>
-            </div>
-            <div>
-              <p>
-                <strong>Input B</strong>
-                <span> · {captureB.deviceLabel}</span>
-              </p>
-              <button
-                className="button button-secondary source-play"
-                type="button"
-                onClick={() => onPlay("B")}
-              >
-                <Mic size={18} /> Play Input B <kbd>B</kbd>
-              </button>
-            </div>
-            <div>
-              <p>
-                <strong>Synchronized playback</strong>
-              </p>
-              <span>Plays A and B together for direct comparison.</span>
-              <button
-                className="button button-secondary source-play"
-                type="button"
-                onClick={() => onPlay("both")}
-              >
-                <Play size={17} fill="currentColor" /> Play both{" "}
-                <kbd>
-                  <b>A</b> + <em>B</em>
-                </kbd>
-              </button>
-            </div>
-          </div>
-          <div className="reveal-actions desktop-actions">
+      <div
+        className="track-selector"
+        role="tablist"
+        aria-label="Choose one capture to inspect"
+      >
+        {TRACK_SLOTS.map((slot, index) => {
+          const candidate = captures[slot];
+          const selected = slot === selectedSlot;
+          return (
             <button
+              key={slot}
+              ref={(node) => {
+                if (node) trackTabRefs.current.set(slot, node);
+                else trackTabRefs.current.delete(slot);
+              }}
+              id={`${panelId}-${slot.toLowerCase()}-tab`}
               type="button"
-              className="button button-secondary"
-              onClick={onRepeat}
+              role="tab"
+              aria-selected={selected}
+              aria-controls={panelId}
+              tabIndex={selected ? 0 : -1}
+              data-selected={selected || undefined}
+              data-slot={slot}
+              onClick={() => selectTrack(slot)}
+              onKeyDown={(event) => handleTrackKeyDown(event, index)}
             >
-              <RotateCcw size={18} />
-              Repeat captures
+              <span className="track-selector-letter">{slot}</span>
+              <span>
+                <strong>Input {slot}</strong>
+                <small>{candidate.deviceLabel}</small>
+              </span>
+              <em>{selected ? "Inspecting" : "Open track"}</em>
             </button>
-            <button
-              type="button"
-              className="button button-primary"
-              onClick={onUpgrade}
-            >
-              Upgrade Signal
-              <ArrowRight size={19} />
-            </button>
-            <p className="privacy-note">
-              <Info size={16} />
-              {signalMode === "live"
-                ? "Cloud access expires after 24 hours."
-                : "Audio stays in this tab and is released when you reset or close it."}
-            </p>
-          </div>
-        </aside>
+          );
+        })}
+      </div>
 
-        <div className="comparison-instrument">
+      <div
+        id={panelId}
+        className="track-review-panel"
+        role="tabpanel"
+        aria-labelledby={`${panelId}-${selectedSlot.toLowerCase()}-tab`}
+      >
+        <div className="track-instrument">
           <InstrumentRegistration />
-          <div className="plot-legend" aria-label="Signal legend">
-            <span>
-              <i data-color="cyan" />
-              Input A
-            </span>
-            <span>
-              <i data-color="amber" />
-              Input B
-            </span>
-            <span>
-              <i data-color="neutral" />
-              Difference
-            </span>
+          <header className="track-instrument-heading">
+            <div>
+              <p className="instrument-label">
+                Viewing Input {selectedSlot} only
+              </p>
+              <h2>{capture.deviceLabel}</h2>
+              <p>Recorded level · no loudness matching or normalization</p>
+            </div>
+            <ViewTabs
+              view={view}
+              onChange={setView}
+              panelId={`${panelId}-plot`}
+              idPrefix={`${panelId}-view`}
+              ariaLabel={`Input ${selectedSlot} evidence view`}
+            />
+          </header>
+
+          <div
+            id={`${panelId}-plot`}
+            role="tabpanel"
+            aria-labelledby={`${panelId}-view-${view}-tab`}
+            className="track-plot-panel"
+          >
+            <p className="track-view-note">
+              {view === "waveform"
+                ? "Recorded amplitude · full scale ±1 · time in seconds"
+                : view === "spectrum"
+                  ? "Magnitude · −120 to 0 dBFS · logarithmic frequency"
+                  : "RMS envelope · −120 to 0 dBFS · time in seconds"}
+            </p>
+            <SignalPlot
+              tracks={plotTracks}
+              view={view}
+              segments={READING_SEGMENTS}
+              duration={GUIDED_READING_DURATION_SECONDS}
+              playhead={
+                view === "spectrum"
+                  ? 0
+                  : currentTime / GUIDED_READING_DURATION_SECONDS
+              }
+              ariaLabel={`Input ${selectedSlot} ${view} for the guided reading`}
+            />
           </div>
-          <SignalPlot
-            tracks={tracks}
-            view={view === "difference" ? "waveform" : view}
-            playhead={currentTime / 20}
-            ariaLabel={`${mode === "absolute" ? "Absolute" : "Loudness-matched"} ${view} comparison of Input A, Input B, and their difference`}
+
+          <Transport
+            playing={selectedPlaying}
+            currentTime={currentTime}
+            duration={GUIDED_READING_DURATION_SECONDS}
+            onToggle={() => onPlay(selectedSlot)}
+            onSeek={onSeek}
+            label={`Input ${selectedSlot}`}
           />
+
           <InstrumentMetadata
-            label="Comparison evidence"
+            label={`Input ${selectedSlot} capture evidence`}
             items={[
-              { label: "Reference", value: "diagnostic-speech-v1" },
+              { label: "Protocol", value: capture.protocolId },
               {
                 label: "Duration",
-                value: `${(
-                  captureA.samples.length / captureA.sampleRate
-                ).toFixed(1)} s`,
+                value: `${assessment.durationSeconds.toFixed(1)} s`,
               },
               {
                 label: "Sample rate",
-                value: `${captureA.sampleRate / 1_000} kHz`,
+                value: `${(capture.sampleRate / 1_000).toFixed(1)} kHz`,
               },
-              {
-                label: "View",
-                value: mode === "absolute" ? "Absolute" : "Loudness matched",
-              },
+              { label: "View", value: view },
             ]}
           />
-          <Transport
-            playing={playing}
-            currentTime={currentTime}
-            onToggle={() => onPlay("both")}
-            onSeek={onSeek}
-            label="both captures"
-          />
         </div>
+
+        <section className="track-detail" aria-labelledby="track-detail-title">
+          <header className="track-detail-heading">
+            <p className="instrument-label">Measured detail</p>
+            <h2 id="track-detail-title">Input {selectedSlot}, cue by cue.</h2>
+            <p>Choose any cue or finding to move the playback position.</p>
+          </header>
+
+          <TrackMetrics capture={capture} assessment={assessment} />
+
+          <div
+            className="track-cues"
+            aria-label="Guided reading cue measurements"
+          >
+            {assessment.cues.map((cue) => (
+              <button
+                key={cue.cueId}
+                type="button"
+                onClick={() => onSeek(cue.startSeconds)}
+                aria-label={`Jump to ${cue.label}, ${formatRange(cue.startSeconds, cue.endSeconds)}`}
+              >
+                <span>
+                  <strong>{cue.label}</strong>
+                  <small>{formatRange(cue.startSeconds, cue.endSeconds)}</small>
+                </span>
+                <em>{cue.complete ? formatDb(cue.rmsDbFs) : "Incomplete"}</em>
+              </button>
+            ))}
+          </div>
+
+          <div className="track-insights">
+            <InsightGroup
+              tone="strength"
+              insights={insightsFor("strength")}
+              onSeek={onSeek}
+            />
+            <InsightGroup
+              tone="attention"
+              insights={insightsFor("attention")}
+              onSeek={onSeek}
+            />
+            <InsightGroup
+              tone="context"
+              insights={insightsFor("context")}
+              onSeek={onSeek}
+            />
+          </div>
+        </section>
       </div>
 
-      <section
-        className="observation-section"
-        aria-labelledby="observations-title"
-      >
-        <p id="observations-title" className="instrument-label">
-          What the signal suggests
+      <div className="track-review-footer">
+        <p className="track-review-qualification">
+          <Info size={17} aria-hidden="true" />
+          These measurements describe this recording. Voice delivery, distance,
+          position, room sound, and browser or device processing can all affect
+          the result; they do not diagnose the hardware by themselves.
         </p>
-        <div className="observation-rail">
-          {observations.map((observation) => (
-            <article key={observation.title}>
-              <ObservationGlyph kind={observation.kind} />
-              <div>
-                <h2>{observation.title}</h2>
-                <p>{observation.detail}</p>
-              </div>
-            </article>
-          ))}
+        <div className="track-review-actions">
+          <button
+            type="button"
+            className="button button-secondary"
+            onClick={onRepeat}
+          >
+            <RotateCcw size={18} />
+            Repeat both captures
+          </button>
+          <button
+            type="button"
+            className="button button-primary"
+            onClick={onUpgrade}
+          >
+            Upgrade Input A
+            <ArrowRight size={19} />
+          </button>
         </div>
-        <p className="qualification">
-          <Info size={16} />
-          These patterns may reflect device processing, position, playback, or
-          the room.
-        </p>
-      </section>
-
-      <div className="reveal-actions mobile-actions">
-        <button
-          type="button"
-          className="button button-primary"
-          onClick={onUpgrade}
-        >
-          Upgrade Signal
-          <ArrowRight size={19} />
-        </button>
-        <button
-          type="button"
-          className="button button-secondary"
-          onClick={onRepeat}
-        >
-          <RotateCcw size={18} />
-          Repeat captures
-        </button>
         <p className="privacy-note">
           <Info size={16} />
           {signalMode === "live"
-            ? "Cloud access expires after 24 hours."
+            ? "Upgrade access is private and expires after 24 hours."
             : "Audio stays in this tab and is released when you reset or close it."}
         </p>
       </div>

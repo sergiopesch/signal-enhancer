@@ -25,7 +25,7 @@ export function Transport({
   duration = 20,
   onToggle,
   onSeek,
-  label = "reference sound",
+  label = "selected capture",
   compact = false,
 }: Readonly<TransportProps>) {
   return (
@@ -66,9 +66,13 @@ export function Transport({
           <SkipForward size={19} />
         </button>
       </div>
-      <output className="transport-time" aria-label="Playback time">
+      <time
+        className="transport-time"
+        aria-label="Playback time"
+        dateTime={`PT${Math.max(0, currentTime).toFixed(1)}S`}
+      >
         {formatTime(currentTime)} <span>/</span> {formatTime(duration)}
-      </output>
+      </time>
     </div>
   );
 }

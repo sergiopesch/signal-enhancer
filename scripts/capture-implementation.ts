@@ -17,7 +17,11 @@ async function waitForStageMotion(page: Page) {
         .map((animation) => animation.finished),
     );
   });
-  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.evaluate(() => {
+    if (document.activeElement instanceof HTMLElement)
+      document.activeElement.blur();
+    window.scrollTo(0, 0);
+  });
   await page.waitForFunction(() => window.scrollY === 0);
 }
 
@@ -29,7 +33,11 @@ async function waitForLandingMotion(page: Page) {
         .map((animation) => animation.finished),
     );
   });
-  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.evaluate(() => {
+    if (document.activeElement instanceof HTMLElement)
+      document.activeElement.blur();
+    window.scrollTo(0, 0);
+  });
   await page.waitForFunction(() => window.scrollY === 0);
 }
 
@@ -45,14 +53,12 @@ async function openApp(page: Page) {
   await page.locator('.app-shell[data-hydrated="true"]').waitFor();
 }
 
-async function openPreparedReveal(page: Page) {
+async function openPreparedReview(page: Page) {
   await openApp(page);
   await page.getByRole("button", { name: "About Signal Enhancer" }).click();
+  await page.getByRole("button", { name: /Explore a prepared review/ }).click();
   await page
-    .getByRole("button", { name: /Explore a prepared comparison/ })
-    .click();
-  await page
-    .getByRole("heading", { name: "Same sound. Different ears." })
+    .getByRole("heading", { name: "One input under the lens." })
     .waitFor();
   await waitForStageMotion(page);
 }
@@ -79,10 +85,10 @@ async function captureDesktop() {
 
     await page.getByRole("button", { name: "About Signal Enhancer" }).click();
     await page
-      .getByRole("button", { name: /Explore a prepared comparison/ })
+      .getByRole("button", { name: /Explore a prepared review/ })
       .click();
     await page
-      .getByRole("heading", { name: "Same sound. Different ears." })
+      .getByRole("heading", { name: "One input under the lens." })
       .waitFor();
     await waitForStageMotion(page);
     await page.screenshot({
@@ -90,9 +96,15 @@ async function captureDesktop() {
     });
 
     await page
-      .getByRole("button", { name: /Upgrade Signal/ })
-      .first()
+      .getByRole("tablist", { name: "Choose one capture to inspect" })
+      .getByRole("tab", { name: /Input B/ })
       .click();
+    await page.getByText("Viewing Input B only").waitFor();
+    await page.screenshot({
+      path: resolve(outputDirectory, "02-reveal-input-b-desktop.png"),
+    });
+
+    await page.getByRole("button", { name: "Upgrade Input A" }).click();
     await page
       .getByRole("heading", { name: "Reshaping the signal." })
       .waitFor();
@@ -131,7 +143,7 @@ async function captureMobile() {
       path: resolve(outputDirectory, "00-home-mobile.png"),
     });
 
-    await openPreparedReveal(page);
+    await openPreparedReview(page);
     await page.screenshot({
       path: resolve(outputDirectory, "05-reveal-mobile.png"),
     });

@@ -14,6 +14,11 @@ import {
 import { useMemo, useState } from "react";
 
 import {
+  GUIDED_READING_CUES,
+  GUIDED_READING_DURATION_SECONDS,
+} from "@/lib/audio/reading-passage";
+
+import {
   InstrumentMetadata,
   InstrumentRegistration,
 } from "./instrument-chrome";
@@ -32,6 +37,14 @@ const STAGES = [
   "Generating difference map",
   "Preparing report",
 ] as const;
+
+const READING_SEGMENTS = GUIDED_READING_CUES.map((cue) => ({
+  label: cue.label,
+  mobileLabel:
+    cue.id === "room-tone" ? "Room" : (cue.label.split(" ")[0] ?? cue.label),
+  startSeconds: cue.startSeconds,
+  endSeconds: cue.endSeconds,
+}));
 
 type UpgradeStageProps = {
   source: CaptureRecord;
@@ -140,7 +153,9 @@ function UpgradeProgress({
       aria-labelledby="upgrade-title"
     >
       <aside className="upgrade-progress-rail">
-        <h1 id="upgrade-title">Reshaping the signal.</h1>
+        <h1 id="upgrade-title" tabIndex={-1}>
+          Reshaping the signal.
+        </h1>
         <p className="lede">
           {mode === "live"
             ? "We’re restoring detail while preserving the character of your capture."
@@ -223,6 +238,8 @@ function UpgradeProgress({
               samples: previewSamples,
             },
           ]}
+          showSegments={false}
+          duration={GUIDED_READING_DURATION_SECONDS}
           activeGate={(currentIndex + 0.5) / STAGES.length}
           ariaLabel={`Upgrade processing visualization. Current stage: ${currentStage}`}
         />
@@ -309,6 +326,8 @@ function UpgradeResult({
         color: "cyan",
         samples: source.waveform,
         spectrum: source.spectrum,
+        spectrumFrequenciesHz: source.spectrumFrequenciesHz,
+        dynamics: source.dynamics,
       },
       {
         id: "enhanced",
@@ -316,12 +335,8 @@ function UpgradeResult({
         color: "amber",
         samples: result.waveform,
         spectrum: result.spectrum,
-      },
-      {
-        id: "difference",
-        label: "Difference",
-        color: "neutral",
-        samples: diffSamples(source.waveform, result.waveform),
+        spectrumFrequenciesHz: result.spectrumFrequenciesHz,
+        dynamics: result.dynamics,
       },
     ],
     [result, source],
@@ -334,7 +349,7 @@ function UpgradeResult({
     >
       <header className="result-heading">
         <div>
-          <h1 id="result-title">
+          <h1 id="result-title" tabIndex={-1}>
             {mode === "live"
               ? "The signal, brought forward."
               : "A local preview, made visible."}
@@ -355,7 +370,7 @@ function UpgradeResult({
             <i />
             <i />
           </span>
-          Compare A/B
+          Alternate original / result
         </button>
         <ViewTabs view={view} onChange={setView} includeDifference />
       </header>
@@ -364,9 +379,22 @@ function UpgradeResult({
         <div className="result-instrument">
           <InstrumentRegistration />
           <SignalPlot
-            tracks={tracks}
+            tracks={
+              view === "difference"
+                ? [
+                    {
+                      id: "difference",
+                      label: "Difference",
+                      color: "neutral",
+                      samples: diffSamples(source.waveform, result.waveform),
+                    },
+                  ]
+                : tracks
+            }
             view={view === "difference" ? "waveform" : view}
-            playhead={currentTime / 20}
+            segments={READING_SEGMENTS}
+            duration={GUIDED_READING_DURATION_SECONDS}
+            playhead={currentTime / GUIDED_READING_DURATION_SECONDS}
             ariaLabel={`${view} comparison of the original Input A and ${mode === "live" ? "enhanced" : "local preview"} signal`}
           />
           <InstrumentMetadata
@@ -393,9 +421,10 @@ function UpgradeResult({
           <Transport
             playing={playing}
             currentTime={currentTime}
+            duration={GUIDED_READING_DURATION_SECONDS}
             onToggle={onTogglePlayback}
             onSeek={onSeek}
-            label="original and enhanced comparison"
+            label="original or result, one at a time"
           />
         </div>
 
@@ -510,7 +539,7 @@ export function UpgradeStage(props: Readonly<UpgradeStageProps>) {
     return (
       <section className="fault-inline" role="alert">
         <p className="instrument-label">Upgrade unavailable</p>
-        <h1>The deeper restoration did not finish.</h1>
+        <h1 tabIndex={-1}>The deeper restoration did not finish.</h1>
         <p>
           {props.error ??
             "Your original capture and local DSP preview are still available in this browser."}

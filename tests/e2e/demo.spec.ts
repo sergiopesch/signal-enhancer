@@ -27,6 +27,20 @@ function watchPageIssues(page: Page) {
   return issues;
 }
 
+async function openPreparedReview(page: Page) {
+  await page.goto("/lab");
+  await page.locator('.app-shell[data-hydrated="true"]').waitFor();
+  await page.getByRole("button", { name: "About Signal Enhancer" }).click();
+  await page.getByRole("button", { name: /Explore a prepared review/ }).click();
+  await expect(
+    page.getByRole("heading", { name: "One input under the lens." }),
+  ).toBeVisible();
+}
+
+function visibleSignalPlot(page: Page) {
+  return page.locator(".signal-plot:visible");
+}
+
 test("minimal landing enters the instrument", async ({ page }, testInfo) => {
   const pageIssues = watchPageIssues(page);
   await page.goto("/");
@@ -35,7 +49,7 @@ test("minimal landing enters the instrument", async ({ page }, testInfo) => {
     page.getByRole("heading", { name: "Every input leaves a trace." }),
   ).toBeVisible();
   await expect(
-    page.getByText(/Compare how two input chains shape the same 20-second/),
+    page.getByText(/Read one 20-second passage through two input chains/),
   ).toBeVisible();
   await expect(page.locator(".experiment-stepper")).toHaveCount(0);
   await expectNoHorizontalOverflow(page);
@@ -58,7 +72,7 @@ test("minimal landing enters the instrument", async ({ page }, testInfo) => {
   await expect(page).toHaveURL(/\/lab$/);
   await page.locator('.app-shell[data-hydrated="true"]').waitFor();
   await expect(
-    page.getByRole("heading", { name: "Listen to the chain." }),
+    page.getByRole("heading", { name: "Prepare your reading." }),
   ).toBeVisible();
   await page.getByRole("link", { name: "Signal Enhancer home" }).click();
   await expect(page).toHaveURL(/\/$/);
@@ -151,14 +165,7 @@ test("lab releases generated audio when returning home", async ({
     };
   });
 
-  await page.goto("/lab");
-  await page.getByRole("button", { name: "About Signal Enhancer" }).click();
-  await page
-    .getByRole("button", { name: /Explore a prepared comparison/ })
-    .click();
-  await expect(
-    page.getByRole("heading", { name: "Same sound. Different ears." }),
-  ).toBeVisible();
+  await openPreparedReview(page);
   await expect
     .poll(() =>
       page.evaluate(
@@ -188,7 +195,196 @@ test("lab releases generated audio when returning home", async ({
     .toBe(true);
 });
 
-test("prepared comparison completes the honest browser-only journey", async ({
+test("prepared review inspects and plays only one capture at a time", async ({
+  page,
+}, testInfo) => {
+  const pageIssues = watchPageIssues(page);
+  await openPreparedReview(page);
+  await expectNoHorizontalOverflow(page);
+
+  const trackSelector = page.getByRole("tablist", {
+    name: "Choose one capture to inspect",
+  });
+  const inputA = trackSelector.getByRole("tab", { name: /Input A/ });
+  const inputB = trackSelector.getByRole("tab", { name: /Input B/ });
+  await expect(inputA).toHaveAttribute("aria-selected", "true");
+  await expect(inputB).toHaveAttribute("aria-selected", "false");
+  await expect(page.getByText("Viewing Input A only")).toBeVisible();
+
+  const plot = visibleSignalPlot(page);
+  await expect(plot.locator(".plot-track")).toHaveCount(1);
+  await expect(plot.locator(".plot-track > text").first()).toHaveText(
+    "Input A",
+  );
+  await expect(
+    page.getByRole("img", {
+      name: "Input A waveform for the guided reading",
+    }),
+  ).toBeVisible();
+  await expect(plot.locator(".plot-segment")).toHaveCount(4);
+  await expect(plot.locator(".plot-segment").first()).toContainText("Room");
+  await expect(plot.locator(".plot-segment").last()).toContainText("Natural");
+  await expect(plot.locator(".plot-ruler text").first()).toHaveText("0:00");
+  await expect(plot.locator(".plot-ruler text").last()).toHaveText("0:20");
+  await expect(page.getByRole("button", { name: /Play both/i })).toHaveCount(0);
+  await expect(page.getByText("Synchronized playback")).toHaveCount(0);
+
+  const waveformPath = await plot.locator(".plot-track path").getAttribute("d");
+  expect(waveformPath).toBeTruthy();
+
+  const viewTabs = page.getByRole("tablist", {
+    name: "Input A evidence view",
+  });
+  const waveformTab = viewTabs.getByRole("tab", { name: "Waveform" });
+  await waveformTab.focus();
+  await page.keyboard.press("ArrowRight");
+  const spectrumTab = viewTabs.getByRole("tab", { name: "Spectrum" });
+  await expect(spectrumTab).toBeFocused();
+  await expect(spectrumTab).toHaveAttribute("aria-selected", "true");
+  const spectrumPanelId = await spectrumTab.getAttribute("aria-controls");
+  expect(spectrumPanelId).toBeTruthy();
+  await expect(page.locator(`#${spectrumPanelId}`)).toBeVisible();
+  await expect(
+    page.getByRole("img", {
+      name: "Input A spectrum for the guided reading",
+    }),
+  ).toBeVisible();
+  await expect(plot.locator(".plot-segment")).toHaveCount(0);
+  await expect(plot.locator(".playhead")).toHaveCount(0);
+  await expect(plot.locator(".active-gate")).toHaveCount(0);
+  await expect(plot.locator(".plot-ruler text").first()).toHaveText("20 Hz");
+  await expect(plot.locator(".plot-ruler text").last()).toContainText("kHz");
+  await expect(plot).not.toContainText("No spectrum evidence available");
+
+  await page.keyboard.press("ArrowRight");
+  const dynamicsTab = viewTabs.getByRole("tab", { name: "Dynamics" });
+  await expect(dynamicsTab).toBeFocused();
+  await expect(dynamicsTab).toHaveAttribute("aria-selected", "true");
+  await expect(
+    page.getByRole("img", {
+      name: "Input A dynamics for the guided reading",
+    }),
+  ).toBeVisible();
+  await expect(plot.locator(".plot-segment")).toHaveCount(4);
+  await expect(plot.locator(".plot-ruler text").first()).toHaveText("0:00");
+  await expect(plot.locator(".plot-ruler text").last()).toHaveText("0:20");
+  await expect(plot).not.toContainText("No dynamics evidence available");
+  const dynamicsPath = await plot.locator(".plot-track path").getAttribute("d");
+  expect(dynamicsPath).toBeTruthy();
+  expect(dynamicsPath).not.toBe(waveformPath);
+
+  await page.keyboard.press("Home");
+  await expect(waveformTab).toBeFocused();
+  await expect(waveformTab).toHaveAttribute("aria-selected", "true");
+
+  await page.getByRole("button", { name: "Play Input A" }).click();
+  await expect(
+    page.getByRole("button", { name: "Pause Input A" }),
+  ).toBeVisible();
+  await inputB.click();
+  await expect(inputB).toHaveAttribute("aria-selected", "true");
+  await expect(inputA).toHaveAttribute("aria-selected", "false");
+  await expect(page.getByText("Viewing Input B only")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Play Input B" }),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: /Pause Input/ })).toHaveCount(
+    0,
+  );
+  await expect(page.getByLabel("Playback time")).toContainText("0:00.0");
+  await expect(plot.locator(".plot-track")).toHaveCount(1);
+  await expect(plot.locator(".plot-track > text").first()).toHaveText(
+    "Input B",
+  );
+  await expect(
+    page.getByRole("img", {
+      name: "Input B waveform for the guided reading",
+    }),
+  ).toBeVisible();
+
+  await page.getByRole("button", { name: /Jump to Soft but clear/ }).click();
+  await expect(page.getByLabel("Playback time")).toContainText("0:08.0");
+  const rangedFinding = page
+    .locator('.track-insight[aria-label^="Jump to 0:02"]')
+    .first();
+  await expect(rangedFinding).toBeVisible();
+  await rangedFinding.click();
+  await expect(page.getByLabel("Playback time")).toContainText("0:02.0");
+
+  if (testInfo.project.name === "mobile") {
+    const findingDetail = page.locator(".track-insight-copy > span").first();
+    await expect(findingDetail).toBeVisible();
+    expect((await findingDetail.textContent())?.trim().length).toBeGreaterThan(
+      24,
+    );
+    const findingTarget = await rangedFinding.boundingBox();
+    expect(findingTarget?.height).toBeGreaterThanOrEqual(44);
+  }
+
+  await expectNoHorizontalOverflow(page);
+  expect(pageIssues).toEqual([]);
+});
+
+test("a delayed playback request cannot restart after the user switches inputs", async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "chromium",
+    "One playback race audit is sufficient.",
+  );
+  await page.addInitScript(() => {
+    const audit = { active: 0, maximumActive: 0 };
+    const activeSources = new WeakSet<AudioBufferSourceNode>();
+    Object.defineProperty(globalThis, "__signalPlaybackAudit", {
+      configurable: true,
+      value: audit,
+    });
+
+    const originalResume = AudioContext.prototype.resume;
+    AudioContext.prototype.resume = async function resumeWithDelayedResult() {
+      const result = originalResume.call(this);
+      await new Promise((resolve) => window.setTimeout(resolve, 500));
+      return result;
+    };
+
+    const originalStart = AudioBufferSourceNode.prototype.start;
+    AudioBufferSourceNode.prototype.start = function auditedStart(...args) {
+      activeSources.add(this);
+      audit.active += 1;
+      audit.maximumActive = Math.max(audit.maximumActive, audit.active);
+      return Reflect.apply(originalStart, this, args);
+    };
+
+    const originalStop = AudioBufferSourceNode.prototype.stop;
+    AudioBufferSourceNode.prototype.stop = function auditedStop(...args) {
+      if (activeSources.delete(this)) audit.active -= 1;
+      return Reflect.apply(originalStop, this, args);
+    };
+  });
+
+  await openPreparedReview(page);
+  await page.getByRole("button", { name: "Play Input A" }).click();
+  await page
+    .getByRole("tablist", { name: "Choose one capture to inspect" })
+    .getByRole("tab", { name: /Input B/ })
+    .click();
+  await page.getByRole("button", { name: "Play Input B" }).click();
+
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          (
+            globalThis as typeof globalThis & {
+              __signalPlaybackAudit: { maximumActive: number };
+            }
+          ).__signalPlaybackAudit.maximumActive,
+      ),
+    )
+    .toBe(1);
+});
+
+test("prepared review completes the honest browser-only journey", async ({
   page,
 }, testInfo) => {
   const pageIssues = watchPageIssues(page);
@@ -196,8 +392,22 @@ test("prepared comparison completes the honest browser-only journey", async ({
   await page.locator('.app-shell[data-hydrated="true"]').waitFor();
 
   await expect(
-    page.getByRole("heading", { name: "Listen to the chain." }),
+    page.getByRole("heading", { name: "Prepare your reading." }),
   ).toBeVisible();
+  await expect(
+    page.getByText("Practice is silent and not recorded."),
+  ).toBeVisible();
+  await expect(
+    page.getByText(
+      "Beyond the quiet room, clear voices travel through glass and open air.",
+    ),
+  ).toBeVisible();
+  await expect(page.locator(".reading-cues > li")).toHaveCount(4);
+  await page.getByRole("button", { name: "Practice the timing" }).click();
+  await expect(
+    page.locator('.reading-cues > li[data-cue="room-tone"]'),
+  ).toHaveAttribute("aria-current", "step");
+  await page.getByRole("button", { name: "Pause practice" }).click();
   await expectNoHorizontalOverflow(page);
   if (testInfo.project.name === "mobile") {
     const aboutTarget = await page
@@ -216,12 +426,12 @@ test("prepared comparison completes the honest browser-only journey", async ({
   ).toBeVisible();
   await expect(page.locator("body")).toHaveCSS("overflow", "hidden");
   const closeAbout = page.getByRole("button", { name: "Close About" });
-  const loadPreparedComparison = page.getByRole("button", {
-    name: /Explore a prepared comparison/,
+  const loadPreparedReview = page.getByRole("button", {
+    name: /Explore a prepared review/,
   });
   await expect(closeAbout).toBeFocused();
   await page.keyboard.press("Shift+Tab");
-  await expect(loadPreparedComparison).toBeFocused();
+  await expect(loadPreparedReview).toBeFocused();
   await page.keyboard.press("Tab");
   await expect(closeAbout).toBeFocused();
   await page.keyboard.press("Escape");
@@ -243,53 +453,30 @@ test("prepared comparison completes the honest browser-only journey", async ({
   ).toBeFocused();
 
   await page.getByRole("button", { name: "About Signal Enhancer" }).click();
-  await page
-    .getByRole("button", { name: /Explore a prepared comparison/ })
-    .click();
+  await page.getByRole("button", { name: /Explore a prepared review/ }).click();
 
   await expect(
-    page.getByRole("heading", { name: "Same sound. Different ears." }),
+    page.getByRole("heading", { name: "One input under the lens." }),
   ).toBeVisible();
   await expectNoHorizontalOverflow(page);
-  await expect(
-    page.getByRole("img", { name: /Absolute waveform comparison/ }),
-  ).toBeVisible();
-  await expect(
-    page.locator(".signal-plot:visible .plot-ruler text").last(),
-  ).toHaveText("0:20");
-  await expect(page.getByText("20:00", { exact: true })).toHaveCount(0);
-  await page.getByRole("button", { name: "Loudness matched" }).click();
-  await page.getByRole("tab", { name: "Spectrum" }).click();
-  await expect(
-    page.getByRole("img", { name: /Loudness-matched spectrum comparison/ }),
-  ).toBeVisible();
-  await page.getByRole("tab", { name: "Dynamics" }).click();
-  await expect(
-    page.getByRole("img", { name: /Loudness-matched dynamics comparison/ }),
-  ).toBeVisible();
-  await page.getByRole("tab", { name: "Waveform" }).click();
+  await expect(page.getByText("Viewing Input A only")).toBeVisible();
 
-  if (testInfo.project.name === "chromium") {
-    await page.getByRole("button", { name: "Skip to end" }).click();
-    await expect(page.getByLabel("Playback time")).toContainText("0:20.0");
-    await page.getByRole("button", { name: "Return to start" }).click();
-    await expect(page.getByLabel("Playback time")).toContainText("0:00.0");
-  }
-
-  await page.getByRole("button", { name: "Repeat captures" }).click();
+  await page.getByRole("button", { name: "Repeat both captures" }).click();
   await expect(
-    page.getByRole("heading", { name: "Hold the room still." }),
+    page.getByRole("heading", {
+      name: "Read one measured passage.",
+      level: 1,
+    }),
   ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Start three-second count-in" }),
+  ).toBeVisible();
+  await expect(page.getByText("No reading during this cue.")).toBeVisible();
   await expectNoHorizontalOverflow(page);
   await page.getByRole("button", { name: "About Signal Enhancer" }).click();
-  await page
-    .getByRole("button", { name: /Explore a prepared comparison/ })
-    .click();
+  await page.getByRole("button", { name: /Explore a prepared review/ }).click();
 
-  await page
-    .getByRole("button", { name: /Upgrade Signal/ })
-    .first()
-    .click();
+  await page.getByRole("button", { name: "Upgrade Input A" }).first().click();
   await expect(
     page.getByRole("heading", { name: "Reshaping the signal." }),
   ).toBeVisible();
@@ -325,7 +512,7 @@ test("prepared comparison completes the honest browser-only journey", async ({
   ).toHaveAttribute("download", "signal-enhancer-input-a.wav");
   await page.getByRole("button", { name: "Start a new experiment" }).click();
   await expect(
-    page.getByRole("heading", { name: "Listen to the chain." }),
+    page.getByRole("heading", { name: "Prepare your reading." }),
   ).toBeVisible();
   await expectNoHorizontalOverflow(page);
   expect(pageIssues).toEqual([]);

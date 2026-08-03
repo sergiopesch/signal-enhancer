@@ -3,55 +3,58 @@
 
   <h1>Signal Enhancer</h1>
   <p><strong>Every input leaves a trace.</strong></p>
-  <p>A calibrated editorial instrument for seeing how two audio input chains shape the same sound.</p>
+  <p>A calibrated editorial instrument for inspecting two guided readings, one input at a time.</p>
 </div>
 
-![Signal Enhancer minimal homepage: an editorial invitation beside the deterministic reference trace](docs/brand-redesign/implementation/00-home-desktop.png)
+![Signal Enhancer minimal homepage: an editorial invitation beside the phase-aperture signal horizon](docs/brand-redesign/implementation/00-home-desktop.png)
 
-Signal Enhancer guides one deterministic 20-second reference through Input A and Input B, then turns their differences into inspectable evidence. It offers a restrained browser-only DSP preview and an opt-in path to deeper speech restoration without ranking hardware, promising a “raw” signal, or presenting inferred detail as recovered fact.
+Signal Enhancer guides the same versioned 36-word script through Input A and Input B in two separate 20-second readings, then lets you inspect one recording at a time. It offers a restrained browser-only DSP preview and an opt-in path to deeper speech restoration without ranking hardware, promising a “raw” signal, or presenting inferred detail as recovered fact.
 
 > [!NOTE]
 > Signal Enhancer is in public preview. The default configuration is the safe, browser-only demo. This repository is publicly readable but remains proprietary; no open-source license is granted.
 
 ## One experiment, held to one standard
 
-- Play the same versioned reference through two sequential capture chains.
-- Compare waveform, spectrum, dynamics, noise floor, loudness-matched traces, and the A/B difference.
-- Read cautious observations that describe what changed without declaring a winner.
+- Read the same 36-word script in two separate passes, each with a three-second silent count-in and a fixed 20-second cue schedule.
+- Listen, retake, or continue after each capture without losing control of the journey.
+- Inspect Input A or Input B in individual tabs with single-source playback and waveform, spectrum, or dynamics views on labelled axes.
+- Follow cue-ranged measurements and cautious limitations that describe one recording without declaring a winner.
 - Preview a transparent, non-AI local DSP pass.
-- In an explicitly configured live environment, run one durable deep-upgrade job while the backend records its route, measurements, versions, and enhanced-WAV hash.
+- Choose **Upgrade Input A** and, in an explicitly configured live environment, run one durable deep-upgrade job while the backend records its route, measurements, versions, and enhanced-WAV hash.
 
 The phase-aperture mark expresses that method: two equal traces approach a narrow capture plane and leave with a visible relationship. The interface follows the same principle—mineral black around one warm measurement surface, ultramarine and vermilion reserved for A/B identity, and provenance shown as part of the instrument rather than hidden in decorative chrome.
 
 ## Demo and live mode are intentionally different
 
-|                         | Safe demo — default                                                       | Live cloud path — opt-in                                                                                                |
-| ----------------------- | ------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| Processing              | Deterministic analysis and restrained DSP in the browser                  | Durable orchestration plus a protected Hugging Face worker                                                              |
-| Audio movement          | Microphone audio stays in the browser, including after **Upgrade Signal** | Audio uploads only after **Upgrade Signal** is pressed                                                                  |
-| Infrastructure required | None beyond the Next.js app                                               | Neon Postgres, a dedicated private Vercel Blob store, Vercel Workflow, and a custom HF Inference Endpoint               |
-| Result language         | Explicitly labelled local preview; no AI model claim                      | Enhanced playback with disclosed limitations; the backend retains route, version, measurement, and result-hash metadata |
-| Failure posture         | Fully usable prepared comparison and local journey                        | Fails closed when any required secret or service is absent                                                              |
+|                         | Safe demo — default                                                        | Live cloud path — opt-in                                                                                                |
+| ----------------------- | -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Processing              | Deterministic analysis and restrained DSP in the browser                   | Durable orchestration plus a protected Hugging Face worker                                                              |
+| Audio movement          | Microphone audio stays in the browser, including after **Upgrade Input A** | Audio uploads only after **Upgrade Input A** is pressed                                                                 |
+| Infrastructure required | None beyond the Next.js app                                                | Neon Postgres, a dedicated private Vercel Blob store, Vercel Workflow, and a custom HF Inference Endpoint               |
+| Result language         | Explicitly labelled local preview; no AI model claim                       | Enhanced playback with disclosed limitations; the backend retains route, version, measurement, and result-hash metadata |
+| Failure posture         | Fully usable prepared individual-track review and local journey            | Fails closed when any required secret or service is absent                                                              |
 
 Making the repository public or deploying the web app does **not** activate live processing. Both `SIGNAL_MODE` and `NEXT_PUBLIC_SIGNAL_MODE` must be set to `live`, and every server-side dependency must pass validation.
 
 ## Product surface
 
-- Exact, versioned, mono diagnostic reference
-- Browser device discovery, confirmation, and sequential AudioWorklet capture
-- Synchronized A/B transport with absolute and loudness-matched views
-- Code-native signal plots with text summaries and non-color identifiers
+- `guided-reading-v1`: one complete 36-word passage repeated in two separate 20-second passes
+- Three-second silent count-in, then 0–2 s room tone, 2–8 s natural voice, 8–14 s soft voice, and 14–20 s natural finish
+- Full-passage guidance plus listen, retake, and continue controls after each AudioWorklet capture
+- Individual Input A/Input B tabs with one source playing at a time
+- Code-native waveform, spectrum, and dynamics plots with labelled units, text summaries, and non-color identifiers
+- Cue-ranged, threshold-based evidence with visible analytical limitations
 - Truthful named processing stages—never a fabricated percentage or ETA
-- One deep upgrade per anonymous signed session in live mode
+- **Upgrade Input A**, once per anonymous signed session in live mode
 - Private, object-scoped uploads and downloads with 24-hour artifact expiry
 
-Implementation evidence, captured from the current local production-mode build:
+Current implementation evidence, captured from the production-mode build:
 
-| Reference and setup                                                                      | Transparent processing                                                                                      | Upgrade result                                                                                       |
-| ---------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| ![Signal Enhancer device setup](docs/brand-redesign/implementation/01-setup-desktop.png) | ![Signal Enhancer named upgrade stages](docs/brand-redesign/implementation/03-upgrade-progress-desktop.png) | ![Signal Enhancer upgrade receipt](docs/brand-redesign/implementation/04-upgrade-result-desktop.png) |
+| Guided-reading setup                                                                             | Input A review                                                                                         | Input B review                                                                                                 |
+| ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| ![Signal Enhancer guided-reading setup](docs/brand-redesign/implementation/01-setup-desktop.png) | ![Signal Enhancer individual Input A review](docs/brand-redesign/implementation/02-reveal-desktop.png) | ![Signal Enhancer individual Input B review](docs/brand-redesign/implementation/02-reveal-input-b-desktop.png) |
 
-The responsive implementation is documented in the [brand fidelity ledger](docs/brand-redesign/FIDELITY_LEDGER.md), including the native mobile capture and the deliberate differences between concept art and runtime evidence.
+The [brand fidelity ledger](docs/brand-redesign/FIDELITY_LEDGER.md) records the concept-to-code decisions, current desktop and mobile evidence, and verified interaction contract.
 
 ## Architecture
 
@@ -89,7 +92,7 @@ cp .env.example .env.local
 npm run dev
 ```
 
-Open `http://localhost:3000` and choose **Begin the comparison** to enter `/lab`. In the lab, choose **About**, then **Explore a prepared comparison** for the deterministic no-permission path, or record two inputs locally. The example environment keeps `SIGNAL_MODE=demo`, so neither path sends microphone audio to a server.
+Open `http://localhost:3000` and choose **Begin the comparison** to enter `/lab`. In the lab, choose **About**, then **Explore a prepared review** for the no-permission individual-track path, or record the guided passage through two inputs locally. The example environment keeps `SIGNAL_MODE=demo`, so neither path sends microphone audio to a server.
 
 ## Quality gates
 
@@ -131,7 +134,7 @@ Live mode requires all of the following server-side values. Leave them unset in 
 | `HF_ENDPOINT_TOKEN`                                      | Hugging Face gateway bearer token                                |
 | `HF_ENDPOINT_SHARED_SECRET`                              | Independent application-to-worker secret; at least 32 characters |
 
-Generate secrets with a cryptographically secure tool, such as `openssl rand -hex 32`. Never expose a server secret with a `NEXT_PUBLIC_` prefix. Keep `SIGNAL_MODE` and `NEXT_PUBLIC_SIGNAL_MODE` aligned, provision all integrations in the same intended environment, and apply the checked-in schema once:
+Generate secrets with a cryptographically secure tool, such as `openssl rand -hex 32`. Never expose a server secret with a `NEXT_PUBLIC_` prefix. Keep `SIGNAL_MODE` and `NEXT_PUBLIC_SIGNAL_MODE` aligned, provision all integrations in the same intended environment, and apply the checked-in versioned migrations in order. The runner discovers every `migrations/NNNN_*.sql` file, verifies its SHA-256 against the migration ledger, and applies each new file atomically:
 
 ```bash
 npm run db:migrate
@@ -141,7 +144,7 @@ Live launch additionally requires an hourly-or-faster authenticated call to `/ap
 
 ## Privacy and security
 
-- No microphone bytes leave the browser until the user presses **Upgrade Signal**; in demo mode they never leave it.
+- No microphone bytes leave the browser until the user presses **Upgrade Input A**; in demo mode they never leave it.
 - Live capture grants are private, object-scoped, non-overwriting, bounded by session expiry, and limited to at most two immutable path attempts per input slot.
 - Live result grants are private, attempt-scoped, non-overwriting, and short-lived.
 - Live sessions, captures, results, and reports expire after 24 hours.
@@ -171,7 +174,7 @@ Start with the [documentation index](docs/README.md).
 ```text
 src/app/                 Next.js UI and route handlers
 src/components/          Product-native lab interface
-src/lib/audio/           Capture, WAV, analysis, comparison, local DSP
+src/lib/audio/           Guided reading, capture, WAV, single-track analysis, local DSP
 src/lib/server/          Contracts, auth, storage, database repositories
 src/lib/workflows/       Durable upgrade orchestration
 worker/                  Hugging Face FastAPI worker and tests

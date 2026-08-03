@@ -43,7 +43,7 @@ The durable product idea is not “AI enhancement.” It is the more defensible 
 
 No benchmark meaningfully owns **forensic evidence about the input chain**. Hardware makers sell an object or claim neutrality. DAWs and plug-ins edit a signal. Restoration tools identify defects. Signal Enhancer can instead stage one controlled experiment:
 
-> A reference goes in. The evidence comes back.
+> One guided reading, repeated. The evidence comes back one input at a time.
 
 This provides three useful brand layers:
 
@@ -63,10 +63,11 @@ This provides three useful brand layers:
 
 ### Supporting language
 
-- Hear what your capture chain changes.
+- Inspect what each guided capture contains.
 - Evidence, not a verdict.
-- One controlled reference. Two capture paths.
-- Measured from the same reference.
+- One versioned 36-word script. Two separate capture passes.
+- Measured from the same guided-reading protocol.
+- One selected recording under inspection at a time.
 - Enhancement is a preview, clearly identified.
 
 ### Voice principles
@@ -81,7 +82,7 @@ Preferred claim structure:
 
 > **Observed result + unit + test condition + interpretation.**
 
-Example: “The capture adds 4.2 dB around 110 Hz after loudness matching.”
+Example: “The 8–14 second soft cue measures 4.2 dB below the 2–8 second natural cue in this recording.”
 
 Avoid: “Your microphone sounds muddy.”
 
@@ -103,7 +104,7 @@ Do not use:
 - Setup is nearly monochrome. A/B color appears only when capture identity exists.
 - One dominant instrument surface replaces nested dashboard cards.
 - Every metric can expand from value → meaning → method.
-- Reference version, duration, sample rate, comparison mode, processing version, and retention remain visible as a quiet evidence strip.
+- Protocol version, duration, sample rate, selected view, cue range, processing version, and retention remain visible as quiet evidence.
 - Playback controls stay physically stable across views.
 - Motion follows real playback or real job state and settles when the signal settles.
-- Mobile keeps a shared cursor, stable A/B transport, and vertically stacked evidence without horizontal overflow.
+- Mobile keeps a selected-source cursor, stable transport, semantic Input A/Input B tabs, and vertically stacked evidence without horizontal overflow.
