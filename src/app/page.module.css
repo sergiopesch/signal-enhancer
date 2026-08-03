@@ -1,0 +1,411 @@
+.shell {
+  background: var(--canvas);
+  color: var(--ink);
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-height: 100svh;
+  overflow: hidden;
+}
+
+.header {
+  align-items: center;
+  animation: settle-in 520ms 40ms cubic-bezier(0.2, 0.72, 0.2, 1) both;
+  border-bottom: 1px solid var(--rule-soft);
+  display: flex;
+  height: 84px;
+  padding-inline: clamp(28px, 3vw, 48px);
+}
+
+.brand {
+  align-items: center;
+  color: var(--ink);
+  display: inline-flex;
+  font-family: var(--font-display);
+  font-size: clamp(1.55rem, 2.2vw, 2rem);
+  font-weight: 430;
+  gap: 18px;
+  letter-spacing: -0.035em;
+  min-height: 48px;
+  text-decoration: none;
+}
+
+.brand :global(.signal-mark) {
+  width: 82px;
+}
+
+.main {
+  display: grid;
+  min-height: calc(100svh - 84px);
+  padding: clamp(30px, 4.6vw, 72px) clamp(28px, 3vw, 48px);
+}
+
+.hero {
+  align-items: center;
+  display: grid;
+  gap: clamp(60px, 6vw, 104px);
+  grid-template-columns: minmax(470px, 0.86fr) minmax(520px, 1.14fr);
+  margin: auto;
+  max-width: 1500px;
+  width: 100%;
+}
+
+.copy {
+  max-width: 620px;
+}
+
+.eyebrow {
+  animation: settle-in 540ms 180ms cubic-bezier(0.2, 0.72, 0.2, 1) both;
+  color: var(--ink-faint);
+  font-family: var(--font-measure);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  margin: 0 0 28px;
+  text-transform: uppercase;
+}
+
+.title {
+  font-family: var(--font-display);
+  font-size: clamp(4.4rem, 5.35vw, 6.2rem);
+  font-weight: 410;
+  letter-spacing: -0.055em;
+  line-height: 0.88;
+  margin: 0;
+  text-wrap: balance;
+}
+
+.title span {
+  animation: settle-in 620ms cubic-bezier(0.2, 0.72, 0.2, 1) both;
+  display: block;
+}
+
+.title span:first-child {
+  animation-delay: 250ms;
+}
+
+.title span:last-child {
+  animation-delay: 330ms;
+}
+
+.premise {
+  animation: settle-in 560ms 420ms cubic-bezier(0.2, 0.72, 0.2, 1) both;
+  color: var(--ink-muted);
+  font-size: clamp(1rem, 1.3vw, 1.16rem);
+  line-height: 1.55;
+  margin: 34px 0 0;
+  max-width: 40ch;
+}
+
+.actionGroup {
+  animation: settle-in 560ms 500ms cubic-bezier(0.2, 0.72, 0.2, 1) both;
+  align-items: flex-start;
+  display: flex;
+  flex-direction: column;
+  margin-top: 40px;
+}
+
+.primaryAction {
+  align-items: center;
+  background: var(--paper-soft);
+  border: 1px solid var(--paper-soft);
+  border-radius: 2px;
+  color: var(--paper-ink);
+  display: inline-flex;
+  font-family: var(--font-measure);
+  font-size: 13px;
+  font-weight: 520;
+  gap: 28px;
+  justify-content: space-between;
+  min-height: 54px;
+  min-width: 250px;
+  padding: 0 18px;
+  text-decoration: none;
+  transition:
+    background-color 180ms ease,
+    border-color 180ms ease;
+}
+
+.primaryAction:hover {
+  background: #fffaf0;
+  border-color: #fffaf0;
+}
+
+.actionArrow {
+  display: inline-block;
+  font-family: var(--font-ui);
+  font-size: 20px;
+  line-height: 1;
+  transition: transform 180ms ease;
+}
+
+.primaryAction:hover .actionArrow,
+.primaryAction:focus-visible .actionArrow {
+  transform: translateX(4px);
+}
+
+.assurance {
+  color: var(--ink-faint);
+  font-family: var(--font-measure);
+  font-size: 11px;
+  letter-spacing: 0.025em;
+  line-height: 1.5;
+  margin: 15px 0 0;
+}
+
+.signalField {
+  animation: field-in 700ms 140ms cubic-bezier(0.2, 0.72, 0.2, 1) both;
+  align-self: center;
+  border-bottom: 1px solid var(--rule-soft);
+  border-top: 1px solid var(--rule-soft);
+  min-width: 0;
+  padding-block: 16px 12px;
+}
+
+.signalMeta,
+.timeScale {
+  align-items: center;
+  color: var(--ink-faint);
+  display: flex;
+  font-family: var(--font-measure);
+  font-size: 9px;
+  justify-content: space-between;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.traceReveal {
+  animation: trace-reveal 900ms 260ms cubic-bezier(0.22, 0.72, 0.18, 1) both;
+  clip-path: inset(0 100% 0 0);
+  overflow: hidden;
+  will-change: clip-path;
+}
+
+.trace {
+  display: block;
+  height: clamp(270px, 34vw, 500px);
+  overflow: visible;
+  width: 100%;
+}
+
+.traceBaseline,
+.referenceTrace,
+.aperture,
+.tick {
+  fill: none;
+  stroke-linecap: square;
+  stroke-linejoin: miter;
+  vector-effect: non-scaling-stroke;
+}
+
+.traceBaseline {
+  stroke: var(--rule-soft);
+  stroke-width: 1;
+}
+
+.referenceTrace {
+  stroke: var(--paper-soft);
+  stroke-width: 1.2;
+}
+
+.aperture {
+  stroke: var(--ink-muted);
+  stroke-width: 1.4;
+}
+
+.tick {
+  stroke: var(--rule);
+  stroke-width: 1;
+}
+
+.timeScale span:nth-child(2) {
+  color: var(--ink-muted);
+}
+
+@keyframes settle-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes field-in {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes trace-reveal {
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+@media (max-width: 1120px) {
+  .shell {
+    overflow: auto;
+  }
+
+  .hero {
+    gap: clamp(34px, 4vw, 48px);
+    grid-template-columns: minmax(360px, 0.82fr) minmax(0, 1.18fr);
+    max-width: none;
+  }
+
+  .title {
+    font-size: clamp(3.65rem, 6.2vw, 4.45rem);
+  }
+
+  .premise {
+    margin-top: 26px;
+  }
+
+  .actionGroup {
+    margin-top: 30px;
+  }
+
+  .trace {
+    height: clamp(220px, 29vw, 300px);
+  }
+}
+
+@media (max-width: 880px) {
+  .hero {
+    gap: 38px;
+    grid-template-columns: 1fr;
+    max-width: 720px;
+  }
+
+  .copy {
+    grid-row: 1;
+  }
+
+  .signalField {
+    grid-row: 2;
+  }
+}
+
+@media (max-width: 720px) {
+  .header {
+    height: 72px;
+    padding-inline: 20px;
+  }
+
+  .brand {
+    font-size: 1.35rem;
+    gap: 12px;
+  }
+
+  .brand :global(.signal-mark) {
+    width: 62px;
+  }
+
+  .main {
+    min-height: calc(100svh - 72px);
+    padding: 24px 20px 34px;
+  }
+
+  .hero {
+    gap: 30px;
+  }
+
+  .signalField {
+    grid-row: 1;
+  }
+
+  .copy {
+    grid-row: 2;
+  }
+
+  .signalField {
+    padding-block: 10px 8px;
+  }
+
+  .signalMeta,
+  .timeScale {
+    font-size: 8px;
+  }
+
+  .trace {
+    height: clamp(160px, 44vw, 220px);
+  }
+
+  .eyebrow {
+    margin-bottom: 17px;
+  }
+
+  .title {
+    font-size: clamp(3.25rem, 15vw, 4.5rem);
+    line-height: 0.9;
+  }
+
+  .premise {
+    font-size: 1rem;
+    margin-top: 23px;
+    max-width: 34ch;
+  }
+
+  .actionGroup {
+    margin-top: 28px;
+  }
+
+  .primaryAction {
+    min-width: 0;
+    width: 100%;
+  }
+}
+
+@media (max-width: 360px) {
+  .main {
+    padding-inline: 16px;
+  }
+
+  .signalMeta span:first-child {
+    max-width: 210px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .header,
+  .eyebrow,
+  .title span,
+  .premise,
+  .actionGroup,
+  .signalField,
+  .traceReveal {
+    animation: none;
+    clip-path: none;
+    opacity: 1;
+    transform: none;
+  }
+
+  .actionArrow {
+    transition: none;
+  }
+}
+
+@supports (min-height: 100dvh) {
+  .shell {
+    min-height: 100dvh;
+  }
+
+  .main {
+    min-height: calc(100dvh - 84px);
+  }
+
+  @media (max-width: 720px) {
+    .main {
+      min-height: calc(100dvh - 72px);
+    }
+  }
+}

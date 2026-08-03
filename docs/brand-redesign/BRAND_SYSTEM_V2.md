@@ -90,6 +90,17 @@ Uppercase is reserved for genuinely compact instrument labels. Paragraphs and ac
 - Containers have `0–3 px` radius. Dialogs may use up to `6 px` where focus separation requires it.
 - Shadows are absent. Separation comes from value, rules, and space.
 
+### Entry threshold
+
+The public homepage is an **aperture foyer** rather than a compressed experiment screen:
+
+- one wordmark, one premise, one primary action, and one privacy assurance;
+- generous negative space around a single deterministic reference trace;
+- no workflow stepper, device selectors, permission request, calibration plate, metadata ledger, transport, or application footer before entry;
+- `/lab` is the explicit boundary where the working instrument and audio client begin.
+
+Homepage motion draws the real reference visualization once and then becomes still. The phase-aperture mark is never animated, no sound autoplays, and reduced-motion users receive the settled composition immediately.
+
 ## Component behavior
 
 ### Calibration plate

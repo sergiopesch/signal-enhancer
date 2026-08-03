@@ -7,6 +7,7 @@ import {
   createReferenceDiagnosticWav,
   parseWav,
 } from "../index";
+import { makeReferenceDiagnosticTrace } from "../reference-trace";
 
 function rms(samples: Float32Array): number {
   let sum = 0;
@@ -66,5 +67,13 @@ describe("versioned diagnostic reference", () => {
     expect(decoded.sampleRate).toBe(8_000);
     expect(decoded.durationSeconds).toBe(20);
     expect(decoded.bitsPerSample).toBe(16);
+  });
+
+  it("derives the landing trace from the canonical silent opening and signal", () => {
+    const trace = makeReferenceDiagnosticTrace(260);
+
+    expect(trace).toHaveLength(260);
+    expect(trace.slice(0, 26).every((sample) => sample === 0)).toBe(true);
+    expect(trace.slice(26).some((sample) => sample !== 0)).toBe(true);
   });
 });

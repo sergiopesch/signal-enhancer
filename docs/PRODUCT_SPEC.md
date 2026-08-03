@@ -24,6 +24,10 @@ The product is standalone. It is not a tab or extension of My Audio Visualizer.
 
 ## Canonical journey
 
+### 0. Entry threshold
+
+The public homepage is a quiet threshold into the experiment, not the experiment itself. It shows one product premise, one primary action, one privacy assurance, and a finite drawing of the deterministic reference trace. The phase-aperture mark remains static. Workflow navigation, device access, reference controls, metadata, and the audio client load only after the user enters the instrument at `/lab`.
+
 ### 1. Reference and device setup
 
 The application requests microphone permission, enumerates available audio inputs, reports device labels cautiously, and asks the user to confirm each label. It shows requested constraints and the settings actually reported by the browser when available.

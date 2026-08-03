@@ -6,7 +6,7 @@
   <p>A calibrated editorial instrument for seeing how two audio input chains shape the same sound.</p>
 </div>
 
-![Signal Enhancer reveal view: two input chains compared on a warm calibration plate](docs/brand-redesign/implementation/02-reveal-desktop.png)
+![Signal Enhancer minimal homepage: an editorial invitation beside the deterministic reference trace](docs/brand-redesign/implementation/00-home-desktop.png)
 
 Signal Enhancer guides one deterministic 20-second reference through Input A and Input B, then turns their differences into inspectable evidence. It offers a restrained browser-only DSP preview and an opt-in path to deeper speech restoration without ranking hardware, promising a “raw” signal, or presenting inferred detail as recovered fact.
 
@@ -89,7 +89,7 @@ cp .env.example .env.local
 npm run dev
 ```
 
-Open `http://localhost:3000`. Choose **About**, then **Explore a prepared comparison** for the deterministic no-permission path, or record two inputs locally. The example environment keeps `SIGNAL_MODE=demo`, so neither path sends microphone audio to a server.
+Open `http://localhost:3000` and choose **Begin the comparison** to enter `/lab`. In the lab, choose **About**, then **Explore a prepared comparison** for the deterministic no-permission path, or record two inputs locally. The example environment keeps `SIGNAL_MODE=demo`, so neither path sends microphone audio to a server.
 
 ## Quality gates
 
