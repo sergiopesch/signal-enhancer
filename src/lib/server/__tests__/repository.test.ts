@@ -63,6 +63,8 @@ describe("server-side resource reservations", () => {
         publicId: PUBLIC_ID,
         sessionHash: "session-hash",
         networkHash: "network-hash",
+        referenceId: "guided-reading-v1",
+        referenceRevision: "1.0.0",
       }),
     ).resolves.toEqual(session);
 
@@ -72,6 +74,8 @@ describe("server-side resource reservations", () => {
     expect(client.mock.calls[1]?.[0]).toContain(
       'INSERT INTO "experiment_sessions"',
     );
+    expect(client.mock.calls[1]?.[0]).toContain('"reference_id"');
+    expect(client.mock.calls[1]?.[0]).toContain('"reference_revision"');
   });
 
   it("rejects the fourth serialized session start", async () => {
@@ -83,6 +87,8 @@ describe("server-side resource reservations", () => {
         publicId: PUBLIC_ID,
         sessionHash: "session-hash",
         networkHash: "network-hash",
+        referenceId: "guided-reading-v1",
+        referenceRevision: "1.0.0",
       }),
     ).rejects.toMatchObject({ code: "session_rate_limited", status: 429 });
   });

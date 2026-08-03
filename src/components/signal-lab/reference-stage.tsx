@@ -1,12 +1,20 @@
-import { ArrowRight, Info, Mic, Play } from "lucide-react";
+"use client";
+
+import { ArrowRight, Info, Mic, Pause, Play, RotateCcw } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+
+import {
+  GUIDED_READING_DURATION_SECONDS,
+  GUIDED_READING_ID,
+  GUIDED_READING_VERSION,
+} from "@/lib/audio/reading-passage";
 
 import { DeviceSelector } from "./device-selector";
 import {
   InstrumentMetadata,
   InstrumentRegistration,
 } from "./instrument-chrome";
-import { makeReferenceEnvelope, SignalPlot } from "./signal-plot";
-import { Transport } from "./transport";
+import { ReadingGuide } from "./reading-guide";
 import type { DeviceChoice } from "./types";
 
 type ReferenceStageProps = {
@@ -17,16 +25,24 @@ type ReferenceStageProps = {
   confirmedB: boolean;
   permissionState: "idle" | "requesting" | "granted" | "denied";
   permissionMessage: string | undefined;
-  playing: boolean;
-  currentTime: number;
+  /** @deprecated The guided-reading plate no longer plays reference audio. */
+  playing?: boolean;
+  /** @deprecated The guided-reading plate owns a silent practice timeline. */
+  currentTime?: number;
   onInputA: (id: string) => void;
   onInputB: (id: string) => void;
   onConfirmA: () => void;
   onConfirmB: () => void;
   onRequestPermission: () => void;
-  onToggleReference: () => void;
-  onSeekReference: (time: number) => void;
+  /** @deprecated Retained while the root migrates to guided reading. */
+  onToggleReference?: () => void;
+  /** @deprecated Retained while the root migrates to guided reading. */
+  onSeekReference?: (time: number) => void;
   onBegin: () => void;
+  practicePlaying?: boolean;
+  practiceElapsedSeconds?: number;
+  onTogglePractice?: () => void;
+  onRestartPractice?: () => void;
 };
 
 export function ReferenceStage({
@@ -37,18 +53,72 @@ export function ReferenceStage({
   confirmedB,
   permissionState,
   permissionMessage,
-  playing,
-  currentTime,
   onInputA,
   onInputB,
   onConfirmA,
   onConfirmB,
   onRequestPermission,
-  onToggleReference,
-  onSeekReference,
   onBegin,
+  practicePlaying,
+  practiceElapsedSeconds,
+  onTogglePractice,
+  onRestartPractice,
 }: Readonly<ReferenceStageProps>) {
   const ready = confirmedA && confirmedB;
+  const controlledPractice =
+    practicePlaying !== undefined && practiceElapsedSeconds !== undefined;
+  const [internalPracticePlaying, setInternalPracticePlaying] = useState(false);
+  const [internalPracticeElapsed, setInternalPracticeElapsed] = useState(0);
+  const practiceElapsedRef = useRef(0);
+  const resolvedPracticePlaying = controlledPractice
+    ? (practicePlaying ?? false)
+    : internalPracticePlaying;
+  const resolvedPracticeElapsed = controlledPractice
+    ? (practiceElapsedSeconds ?? 0)
+    : internalPracticeElapsed;
+
+  useEffect(() => {
+    if (controlledPractice || !internalPracticePlaying) return;
+    const startedAt = performance.now() - practiceElapsedRef.current * 1_000;
+    const timer = window.setInterval(() => {
+      const next = Math.min(
+        GUIDED_READING_DURATION_SECONDS,
+        (performance.now() - startedAt) / 1_000,
+      );
+      practiceElapsedRef.current = next;
+      setInternalPracticeElapsed(next);
+      if (next >= GUIDED_READING_DURATION_SECONDS)
+        setInternalPracticePlaying(false);
+    }, 100);
+    return () => window.clearInterval(timer);
+  }, [controlledPractice, internalPracticePlaying]);
+
+  const togglePractice = () => {
+    if (controlledPractice) {
+      onTogglePractice?.();
+      return;
+    }
+    if (
+      !internalPracticePlaying &&
+      practiceElapsedRef.current >= GUIDED_READING_DURATION_SECONDS
+    ) {
+      practiceElapsedRef.current = 0;
+      setInternalPracticeElapsed(0);
+    }
+    setInternalPracticePlaying((current) => !current);
+    onTogglePractice?.();
+  };
+
+  const restartPractice = () => {
+    if (controlledPractice) {
+      onRestartPractice?.();
+      return;
+    }
+    practiceElapsedRef.current = 0;
+    setInternalPracticeElapsed(0);
+    setInternalPracticePlaying(false);
+    onRestartPractice?.();
+  };
 
   return (
     <section
@@ -56,10 +126,16 @@ export function ReferenceStage({
       aria-labelledby="reference-title"
     >
       <div className="setup-rail">
-        <h1 id="reference-title">Listen to the chain.</h1>
+        <h1 id="reference-title" tabIndex={-1}>
+          Prepare your reading.
+        </h1>
         <p className="lede">
-          The same sound will travel through two input chains. We’ll show how
-          each one reshapes it—without calling either better.
+          Read the same short passage into Input A, then Input B. Keep your
+          position, distance, and speaking style steady so the input chain
+          remains the meaningful difference.
+        </p>
+        <p className="setup-upgrade-note">
+          Input A is the recording Signal Enhancer will upgrade.
         </p>
 
         <p className="instrument-label setup-label">Choose your inputs</p>
@@ -112,6 +188,11 @@ export function ReferenceStage({
           <span>Begin Input A</span>
           <ArrowRight size={19} />
         </button>
+        <p className="begin-requirement" aria-live="polite">
+          {ready
+            ? "Both inputs are confirmed. You can begin Input A."
+            : "Confirm both inputs to continue."}
+        </p>
         <p className="privacy-note">
           <Info size={16} />
           20 seconds · WAV · stays on this device until you upgrade
@@ -122,53 +203,56 @@ export function ReferenceStage({
         <InstrumentRegistration />
         <div className="instrument-heading">
           <div>
-            <p className="instrument-label">Reference sound</p>
+            <p className="instrument-label">Reading passage</p>
+            <p className="practice-note">
+              Practice is silent and not recorded.
+            </p>
+          </div>
+          <div className="practice-actions">
             <button
               className="button button-secondary preview-reference"
               type="button"
-              onClick={onToggleReference}
+              onClick={togglePractice}
             >
-              <Play size={17} fill="currentColor" />
-              Preview reference
+              {resolvedPracticePlaying ? (
+                <Pause size={17} />
+              ) : (
+                <Play size={17} fill="currentColor" />
+              )}
+              {resolvedPracticePlaying
+                ? "Pause practice"
+                : "Practice the timing"}
             </button>
-          </div>
-          <div className="mini-legend" aria-label="Plot legend">
-            <span>
-              <i data-color="amber" />
-              Playhead
-            </span>
-            <span>
-              <i data-color="cyan" />
-              Input gate
-            </span>
+            {resolvedPracticeElapsed > 0 ? (
+              <button
+                className="button button-quiet restart-practice"
+                type="button"
+                onClick={restartPractice}
+              >
+                <RotateCcw size={16} />
+                Reset
+              </button>
+            ) : null}
           </div>
         </div>
-        <SignalPlot
-          tracks={[
-            {
-              id: "reference",
-              label: "Reference",
-              color: "cyan",
-              samples: makeReferenceEnvelope(),
-            },
-          ]}
-          playhead={currentTime / 20}
-          ariaLabel="Twenty second reference waveform: silence, sweep, clicks, quiet probe, then loud probe"
+        <ReadingGuide
+          state={
+            resolvedPracticeElapsed >= GUIDED_READING_DURATION_SECONDS
+              ? "complete"
+              : resolvedPracticeElapsed > 0 || resolvedPracticePlaying
+                ? "practice"
+                : "prepare"
+          }
+          elapsedSeconds={resolvedPracticeElapsed}
         />
         <InstrumentMetadata
-          label="Reference evidence"
+          label="Reading protocol"
           items={[
-            { label: "Reference", value: "diagnostic-speech-v1" },
+            { label: "Reference", value: GUIDED_READING_ID },
             { label: "Duration", value: "20.0 s" },
-            { label: "Sample rate", value: "48 kHz" },
-            { label: "Channels", value: "Mono" },
+            { label: "Passage", value: "36 words" },
+            { label: "Version", value: GUIDED_READING_VERSION },
           ]}
-        />
-        <Transport
-          playing={playing}
-          currentTime={currentTime}
-          onToggle={onToggleReference}
-          onSeek={onSeekReference}
         />
       </div>
     </section>

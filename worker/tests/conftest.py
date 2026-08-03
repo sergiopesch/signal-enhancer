@@ -101,7 +101,7 @@ def request_body(wav_a: bytes, wav_b: bytes) -> dict[str, Any]:
         "schema_version": "1",
         "job_id": JOB_ID,
         "attempt_id": ATTEMPT_ID,
-        "reference": {"id": "diagnostic-speech", "revision": "v1"},
+        "reference": {"id": "guided-reading-v1", "revision": "1.0.0"},
         "inputs": {"a": source("input-a", wav_a), "b": source("input-b", wav_b)},
         "source": "A",
         "outputs": {

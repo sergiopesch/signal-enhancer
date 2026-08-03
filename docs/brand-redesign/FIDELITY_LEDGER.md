@@ -4,11 +4,11 @@ Review date: 3 August 2026
 
 Accepted direction: **Calibrated Editorial Instrument / Spectral Cartography**
 
-This ledger compares the accepted ImageGen concepts with the production implementation. The concepts define composition, hierarchy, material, and responsive intent. Runtime evidence, device labels, signal traces, controls, and progress remain code-native and truthful.
+This ledger records how the accepted ImageGen direction maps to the current product. Concepts define composition, hierarchy, material, and responsive intent. Runtime evidence, device labels, signal traces, controls, and progress remain code-native and truthful.
 
 ## Capture method
 
-The app was built with `npm run build` and served with `next start`. The in-app browser capture tool was unavailable in this environment, so the documented Playwright fallback captured the production build at device scale factor 1 with no post-processing.
+The existing image set was built with `npm run build` and served with `next start`. The in-app browser capture tool was unavailable in that environment, so the documented Playwright fallback captured the production build at device scale factor 1 with no post-processing.
 
 - Homepage desktop implementation: `1536 × 1024`
 - Homepage mobile implementation: `393 × 852`
@@ -19,62 +19,67 @@ The app was built with `npm run build` and served with `next start`. The in-app 
 - Mobile concept: `852 × 1846`
 - Capture script: `scripts/capture-implementation.ts`
 - Concepts: `docs/brand-redesign/concepts/`
-- Implementation captures: `docs/brand-redesign/implementation/`
+- Current implementation captures: `docs/brand-redesign/implementation/`
 
-Every accepted concept and the latest matching implementation capture was inspected at native resolution in the same QA pass.
+Every accepted concept and current matching implementation capture was inspected at native resolution in the same guided-reading QA pass. The set includes separate desktop evidence for the selected Input A and Input B tabs plus the responsive mobile review.
 
 ## Explicit comparisons
 
-| #   | Concept → implementation   | Fidelity result                                                                                                                                                                                                                         | Deliberate difference                                                                                                                                                        |
-| --- | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | Minimal entry threshold    | The public root now holds only the identity, canonical premise, one action, one assurance, and one deterministic reference horizon. Desktop and mobile use authored negative space instead of compressing the lab.                      | The full experiment deliberately begins at `/lab`; device enumeration, workflow chrome, the calibration plate, and the audio client are deferred until entry.                |
-| 2   | Identity and header        | The phase-aperture mark, calm serif wordmark, mineral shell, hairline rule, and quiet About action carry across every instrument state and breakpoint.                                                                                  | The mark is a compact code-native SVG so it stays sharp, themeable, and accessible instead of shipping a raster crop.                                                        |
-| 3   | Typography and voice       | Newsreader supplies the editorial display voice, Instrument Sans carries interface and narrative copy, and IBM Plex Mono is reserved for measurement, state, and provenance. Sentence case and neutral evidence language are preserved. | Runtime copy never adopts the concept’s decorative abbreviations where the full product label is clearer.                                                                    |
-| 4   | Palette and material       | Mineral black, warm bone paper, ultramarine Input A, vermilion Input B, and graphite Difference reproduce the concept without gradients, glow, glass, or ornamental shadows.                                                            | Accessible darker A/B inks are used on the warm paper where the brighter shell colors would lose contrast.                                                                   |
-| 5   | Five-stage experiment rail | The numbered five-gate spine remains stable from setup through result; completed, active, and future states combine labels, symbols, rules, and contrast. Mobile uses `Ref / A / B / Reveal / Up`.                                      | Code uses semantic buttons and the actual reachable state instead of concept-only status ornament.                                                                           |
-| 6   | Reveal composition         | The two-line editorial conclusion, compact evidence rail, dominant calibration plate, ruled source controls, and observations ledger reproduce the desktop hierarchy.                                                                   | The implementation trace is generated from the real deterministic captures. It is intentionally less pictorial than the concept waveform.                                    |
-| 7   | Calibration plate          | Five named regions, A/B/Difference tracks, shared time ruler, registration marks, evidence strip, and stable transport position are present in desktop and mobile variants.                                                             | `diagnostic-speech-v1`, real duration, actual sample rate, current view, and actual playhead replace the illustrative `SE–001` metadata and decorative speed control.        |
-| 8   | Upgrade progress           | The named processing ledger, live status copy, paired traces, and moving gate make the active stage visible without a fabricated percentage or ETA.                                                                                     | The safe route is identified as a local browser DSP preview; the UI does not imply a remote AI model ran when it did not.                                                    |
-| 9   | Upgrade result             | The serif result statement, comparison plate, change record, limitations, processing receipt, download, and restart actions match the concept’s evidence-first hierarchy.                                                               | The output chart remains the same working instrument used elsewhere, and the receipt exposes the real `browser-v1` pipeline rather than a concept illustration.              |
-| 10  | Mobile reveal              | The custom single-column plot, compact source key, segmented controls, source transport, observations, upgrade action, privacy note, and footer fit a `393 px` viewport without horizontal page scrolling.                              | The mobile chart is a purpose-built SVG geometry, not a scaled or horizontally scrolled desktop plate. The native browser viewport is shown without synthetic device chrome. |
+| #   | Concept → current product     | Fidelity result                                                                                                                                                                                         | Intentional adaptation                                                                                                                                                 |
+| --- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Minimal entry threshold       | The public root keeps the identity, canonical premise, one action, one assurance, and authored negative space around a finite signal horizon.                                                           | The full experiment begins at `/lab`; device enumeration, workflow chrome, the reading plate, and the audio client remain deferred until entry.                        |
+| 2   | Identity and header           | The phase-aperture mark, calm serif wordmark, mineral shell, hairline rule, and quiet About action carry across instrument states and breakpoints.                                                      | The mark is a compact code-native SVG so it stays sharp, themeable, and accessible instead of shipping a raster crop.                                                  |
+| 3   | Typography and voice          | Newsreader supplies the editorial display voice, Instrument Sans carries interface and narrative copy, and IBM Plex Mono is reserved for measurement, state, and provenance.                            | Runtime copy expands decorative abbreviations where a complete cue, unit, or limitation is clearer.                                                                    |
+| 4   | Palette and material          | Mineral black, warm bone paper, ultramarine Input A, vermilion Input B, and graphite annotations preserve the concept without gradients, glow, glass, or ornamental shadows.                            | Accessible darker A/B inks are used on warm paper where brighter shell colors would lose contrast.                                                                     |
+| 5   | Reading setup                 | The dominant paper surface now presents the complete versioned 36-word passage, silent timing practice, four cue ranges, and protocol metadata.                                                         | The user speaks the controlled source; the product no longer asks them to play or record a synthetic probe.                                                            |
+| 6   | Sequential capture            | Input A and Input B each receive a three-second silent count-in followed by one 20-second guided pass. The active phrase is highlighted while the full passage remains visible.                         | After each pass, explicit listen, retake, and continue controls replace automatic advancement.                                                                         |
+| 7   | Individual review             | Semantic Input A/Input B tabs preserve equal visual weight while showing and playing only the selected source. Switching tabs stops current playback.                                                   | The concept’s combined calibration plate is replaced by a one-track-at-a-time review to prevent accidental masking and implied ranking.                                |
+| 8   | Signal evidence               | Waveform, spectrum, and dynamics remain code-native SVG views with real capture data, cue bands, time or frequency axes, dBFS/amplitude units, metadata, and a stable transport position.               | Recorded level remains untouched; the review does not visually equalize two captures before the user inspects them.                                                    |
+| 9   | Findings ledger               | Cue-ranged findings retain the ruled editorial hierarchy and expose a measured value, threshold context, and jump-to-time action.                                                                       | **What held up**, **Worth inspecting**, and **Measured context** describe one recording and carry visible room, delivery, position, and device-processing limitations. |
+| 10  | Upgrade and responsive intent | **Upgrade Input A**, named processing states, privacy copy, and the result record keep the evidence-first conversion path. The reading and review surfaces reflow to one column without hidden content. | Current Input A, Input B, and mobile review captures demonstrate the selected-source state and responsive reading order without synthetic device chrome.               |
 
-## Above-the-fold copy diff
+## Current copy contract
 
-| Surface              | Accepted copy                                                                                   | Shipped copy                     | Result |
-| -------------------- | ----------------------------------------------------------------------------------------------- | -------------------------------- | ------ |
-| Landing title        | “Every input leaves a trace.”                                                                   | “Every input leaves a trace.”    | Exact  |
-| Landing premise      | “Compare how two input chains shape the same 20-second reference—without ranking either.”       | Same                             | Exact  |
-| Reveal title         | “Same sound. Different ears.”                                                                   | “Same sound. Different ears.”    | Exact  |
-| Reveal premise       | “Two input chains, held against the same reference. Explore what changed—not which one won.”    | Same                             | Exact  |
-| Upgrade result title | “A local preview, made visible.”                                                                | “A local preview, made visible.” | Exact  |
-| Upgrade disclosure   | “Fixed filters and restrained dynamics shaped this browser-only preview; no AI model was used.” | Same                             | Exact  |
+| Surface                | Required copy or meaning                                                                                                             |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Landing premise        | Two input chains receive the same guided 20-second reading protocol without ranking either.                                          |
+| Setup title            | “Prepare your reading.”                                                                                                              |
+| Setup instruction      | Read the same short passage into Input A, then Input B; keep position, distance, and speaking style steady.                          |
+| Upgrade disclosure     | Input A is identified before capture as the recording Signal Enhancer will upgrade.                                                  |
+| Protocol metadata      | `guided-reading-v1` · 20.0 s · 36 words · version 1.0.0                                                                              |
+| Capture recovery       | Explicit **Listen**, **Retake**, and **Continue** decisions for each completed pass.                                                 |
+| Review title           | “One input under the lens.”                                                                                                          |
+| Review method          | “Same script · two separate passes”; only the selected recording is shown or played.                                                 |
+| Review qualification   | Delivery, distance, position, room sound, and browser/device processing can affect the measurement and prevent a hardware diagnosis. |
+| Primary upgrade action | “Upgrade Input A”                                                                                                                    |
 
-Concept-only device names, observations, timestamps, and signal shapes were never treated as locked copy. The shipped interface reports browser-provided device labels, computed findings, actual playback time, and the deterministic source version. No ranking, quality score, unsupported restoration claim, or invented hardware is introduced.
+Concept-only device names, observations, timestamps, and signal shapes are not locked copy. The interface reports browser-provided device labels, computed findings, actual playback time, and the real protocol identifier. No ranking, quality score, unsupported restoration claim, or invented hardware is introduced.
 
-## Interaction verification
+## Interaction contract
 
-- The server-rendered homepage loads without the lab’s audio client or device enumeration, exposes one keyboard-reachable action, and enters `/lab` through native navigation.
-- The deterministic reference horizon draws once, becomes still, and is rendered immediately when reduced motion is requested.
-- About opens as a modal dialog, traps focus, closes on Escape or backdrop activation, locks background scrolling, and restores focus to its trigger.
-- The prepared comparison loads both deterministic inputs without requesting microphone access.
-- Absolute/loudness-matched mode and waveform/spectrum/dynamics views update semantic state and their signal figures.
-- Input A, Input B, and synchronized playback use the shared transport and seek position.
-- Repeat captures resets the comparison path without a reload.
-- Upgrade exposes real named stages, resolves to the browser-only result, supports A/B comparison, downloads a PCM WAV, and starts a new experiment.
-- Desktop Chromium and mobile WebKit complete the end-to-end journey without horizontal page overflow.
+- The server-rendered homepage loads without the lab audio client or device enumeration, exposes one keyboard-reachable action, and enters `/lab` through native navigation.
+- The setup surface exposes the complete 36-word passage and a silent practice timeline without recording or playing reference audio.
+- Each pass uses a three-second count-in and the fixed 0–2, 2–8, 8–14, and 14–20 second cue schedule.
+- Completed Input A and Input B captures each expose **Listen**, **Retake**, and **Continue** decisions before advancing.
+- The prepared no-permission path loads two synthetic guided-reading captures into the same individual-track review.
+- Input tabs implement semantic tab behavior; changing the selected input stops playback and never starts the other source automatically.
+- Waveform, spectrum, and dynamics tabs update semantic state, a single-source figure, labelled axes, and the text alternative.
+- Cue and finding controls move the shared selected-source playhead to an exact evidence range.
+- Repeat captures resets the guided-reading path without a reload.
+- **Upgrade Input A** exposes real named stages, resolves to the browser-only result in demo mode, downloads a PCM WAV, and can start a new experiment.
+- Desktop and mobile layouts must complete the journey without horizontal page overflow.
 - Reduced-motion users retain every state while nonessential transitions and drawing motion are removed.
 
-## Corrections made during fidelity review
+## Corrections embodied by the current contract
 
-- Split the crowded initial experiment from the public root and introduced a one-viewport aperture foyer with finite reference-derived motion.
-- Replaced generic horizontal stepper bars with numbered vertical gates and hairlines.
-- Removed signal glow and decorative SVG filtering.
-- Corrected a mobile layout collapse that reduced the signal plate to five pixels.
-- Built separate responsive SVG geometry so track labels, segment guides, time ruler, and evidence remain legible on mobile.
-- Compacted the desktop reveal source rail so the calibration plate aligns with the narrative title.
-- Moved the result statement across the report width and stacked its comparison controls to preserve a clean first fold.
-- Restored mobile source-skip controls and kept the retention/privacy statement visible near the conversion action.
-- Corrected the 20-second ruler to `0:00–0:20` notation, raised small-text color contrast above WCAG AA, restored a 44 × 44 mobile About target, and added a polite live processing status.
+- Replaced played diagnostic material with the same visible, versioned 36-word reading script across two separate passes.
+- Added a silent three-second count-in and four stable cue ranges to both captures.
+- Added listen, retake, and continue recovery after each completed pass.
+- Replaced the combined review plate with individual Input A/Input B tabs and single-source playback.
+- Reduced the review views to waveform, spectrum, and dynamics with explicit axes and units.
+- Bound every observation to a cue range, measured value, published threshold, and conservative limitation.
+- Made **Upgrade Input A** explicit before capture and at the final action.
+- Preserved the phase-aperture identity, warm measurement surface, semantic controls, responsive rules, contrast, and reduced-motion behavior.
 
 ## Accepted principle
 

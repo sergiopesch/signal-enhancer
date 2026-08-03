@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import { SignalMark } from "@/components/signal-lab/signal-mark";
-import { makeReferenceDiagnosticTrace } from "@/lib/audio/reference-trace";
+import { makeGuidedReadingDisplayTrace } from "@/lib/audio/reading-passage";
 
 import styles from "./page.module.css";
 
@@ -9,7 +9,7 @@ const TRACE_WIDTH = 960;
 const TRACE_BASELINE = 190;
 const TRACE_AMPLITUDE = 116;
 
-const referenceTrace = makeReferenceDiagnosticTrace(260);
+const referenceTrace = makeGuidedReadingDisplayTrace(260);
 const referencePath = referenceTrace
   .map((sample, index) => {
     const x = (index / Math.max(1, referenceTrace.length - 1)) * TRACE_WIDTH;
@@ -42,8 +42,8 @@ export default function HomePage() {
               <span>leaves a trace.</span>
             </h1>
             <p className={styles.premise}>
-              Compare how two input chains shape the same 20-second
-              reference—without ranking either.
+              Read one 20-second passage through two input chains, then inspect
+              each capture on its own.
             </p>
             <div className={styles.actionGroup}>
               <Link
@@ -64,7 +64,7 @@ export default function HomePage() {
 
           <div className={styles.signalField} aria-hidden="true">
             <div className={styles.signalMeta}>
-              <span>Reference · diagnostic-speech-v1</span>
+              <span>Guided capture · 20.0 s</span>
               <span>20.0 s</span>
             </div>
             <div className={styles.traceReveal}>
@@ -85,7 +85,7 @@ export default function HomePage() {
             </div>
             <div className={styles.timeScale}>
               <span>0:00</span>
-              <span>same source · two captures</span>
+              <span>same script · two passes</span>
               <span>0:20</span>
             </div>
           </div>

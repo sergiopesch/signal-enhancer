@@ -8,11 +8,24 @@ from pathlib import Path
 from typing import Any
 
 import httpx
+import pytest
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 
 from signal_enhancer_worker.app import create_app
 from signal_enhancer_worker.config import Settings
+from signal_enhancer_worker.contracts import ReferenceVersion
 from signal_enhancer_worker.wav import decode_and_validate_wav
+
+
+def test_reference_protocol_rollout_accepts_only_exact_version_pairs() -> None:
+    assert ReferenceVersion(id="diagnostic-speech", revision="v1").id == "diagnostic-speech"
+    assert ReferenceVersion(id="guided-reading-v1", revision="1.0.0").revision == "1.0.0"
+
+    with pytest.raises(ValidationError):
+        ReferenceVersion(id="diagnostic-speech", revision="1.0.0")
+    with pytest.raises(ValidationError):
+        ReferenceVersion(id="guided-reading-v1", revision="v1")
 
 
 def test_health_and_authenticated_version(
@@ -92,9 +105,7 @@ def test_enhance_uploads_aligned_hashed_artifacts_and_cleans_temp_files(
         "outcome": "dsp_fallback",
         "fallback_code": None,
     }
-    assert result["before"]["audio"]["sample_rate_hz"] == result["after"]["audio"][
-        "sample_rate_hz"
-    ]
+    assert result["before"]["audio"]["sample_rate_hz"] == result["after"]["audio"]["sample_rate_hz"]
     assert result["before"]["audio"]["frame_count"] == result["after"]["audio"]["frame_count"]
     assert set(uploaded) == {
         f"/results/{request_body['job_id']}/{request_body['attempt_id']}/enhanced.wav",
@@ -260,9 +271,7 @@ def test_numeric_url_expiry_is_rejected_by_strict_schema(
     request_body: dict[str, Any],
 ) -> None:
     body = copy.deepcopy(request_body)
-    body["inputs"]["a"]["expires_at"] = int(
-        (datetime.now(UTC) + timedelta(minutes=5)).timestamp()
-    )
+    body["inputs"]["a"]["expires_at"] = int((datetime.now(UTC) + timedelta(minutes=5)).timestamp())
     with client_factory() as client:
         response = client.post("/v1/enhance", headers=auth_headers, json=body)
     assert response.status_code == 422

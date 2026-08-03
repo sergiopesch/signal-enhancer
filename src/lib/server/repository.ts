@@ -23,6 +23,8 @@ export async function createExperimentSession(input: {
   sessionHash: string;
   networkHash: string;
   publicId: string;
+  referenceId: string;
+  referenceRevision: string;
   deviceMetadata?: Record<string, unknown>;
 }) {
   const database = getDatabase();
@@ -37,6 +39,8 @@ export async function createExperimentSession(input: {
         "public_id",
         "session_hash",
         "network_hash",
+        "reference_id",
+        "reference_revision",
         "device_metadata",
         "expires_at"
       )
@@ -44,6 +48,8 @@ export async function createExperimentSession(input: {
         ${input.publicId}::uuid,
         ${input.sessionHash},
         ${input.networkHash},
+        ${input.referenceId},
+        ${input.referenceRevision},
         ${JSON.stringify(input.deviceMetadata ?? {})}::jsonb,
         ${expiresAt.toISOString()}::timestamptz
       WHERE (
@@ -368,6 +374,21 @@ export async function getSessionCaptures(sessionId: string) {
     .select()
     .from(captures)
     .where(eq(captures.sessionId, sessionId));
+}
+
+export async function getExperimentSessionById(sessionId: string) {
+  const [session] = await getDatabase()
+    .select()
+    .from(experimentSessions)
+    .where(eq(experimentSessions.id, sessionId))
+    .limit(1);
+  if (!session || session.expiresAt.getTime() <= Date.now())
+    throw new SignalError(
+      "session_not_found",
+      "This experiment session is unavailable or has expired.",
+      404,
+    );
+  return session;
 }
 
 export async function reserveUpgradeJob(

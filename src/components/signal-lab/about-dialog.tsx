@@ -118,7 +118,7 @@ export function AboutDialog({
           </article>
         </div>
         <p className="about-footnote">
-          Use speakers for the reference sound, keep the room and placement
+          Read the same guided passage twice, keep your distance and placement
           steady, and expect browser-reported device names to be imperfect.
         </p>
         {demoAvailable ? (
@@ -127,7 +127,7 @@ export function AboutDialog({
             className="button button-primary"
             onClick={onLoadDemo}
           >
-            Explore a prepared comparison <ArrowRight size={18} />
+            Explore a prepared review <ArrowRight size={18} />
           </button>
         ) : null}
       </section>

@@ -2,24 +2,27 @@
 
 import { Menu } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   analyzeAudio,
   capturePcmWav,
   createDspPreview,
-  createReferenceDiagnostic,
   encodeWav,
   listAudioInputs,
-  playReferenceDiagnostic,
   requestAudioPermission,
   stopMediaStream,
   type AudioAnalysis,
-  type ReferencePlaybackController,
 } from "@/lib/audio";
+import {
+  GUIDED_READING_COUNT_IN_SECONDS,
+  GUIDED_READING_DURATION_SECONDS,
+  GUIDED_READING_ID,
+  isCompleteGuidedReadingDuration,
+} from "@/lib/audio/reading-passage";
 
 import { AboutDialog } from "./about-dialog";
-import { CaptureStage } from "./capture-stage";
+import { CaptureStage, type CapturePhase } from "./capture-stage";
 import { ExperimentStepper, type ExperimentStage } from "./experiment-stepper";
 import { ReferenceStage } from "./reference-stage";
 import { RevealStage } from "./reveal-stage";
@@ -28,20 +31,39 @@ import type {
   CaptureMetrics,
   CaptureRecord,
   DeviceChoice,
-  Observation,
   UpgradeEvent,
 } from "./types";
 import { UpgradeStage } from "./upgrade-stage";
 
 const SIGNAL_MODE =
   process.env.NEXT_PUBLIC_SIGNAL_MODE === "live" ? "live" : "demo";
-const CAPTURE_SECONDS = 20;
+const CAPTURE_SECONDS = GUIDED_READING_DURATION_SECONDS;
+
+type PlaybackTarget = "capture-A" | "capture-B" | "original" | "enhanced";
 
 type PlaybackGroup = {
-  sources: AudioBufferSourceNode[];
+  source: AudioBufferSourceNode;
   startedAt: number;
   offset: number;
 };
+
+function abortableDelay(milliseconds: number, signal: AbortSignal) {
+  return new Promise<void>((resolve, reject) => {
+    if (signal.aborted) {
+      reject(new DOMException("Capture cancelled.", "AbortError"));
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      signal.removeEventListener("abort", handleAbort);
+      resolve();
+    }, milliseconds);
+    function handleAbort() {
+      window.clearTimeout(timer);
+      reject(new DOMException("Capture cancelled.", "AbortError"));
+    }
+    signal.addEventListener("abort", handleAbort, { once: true });
+  });
+}
 
 function displayError(error: unknown) {
   return error instanceof Error
@@ -92,76 +114,59 @@ function makeRecord(
   const blob = new Blob([wavBytes], { type: "audio/wav" });
   return {
     slot,
+    protocolId: GUIDED_READING_ID,
     blob,
     url: URL.createObjectURL(blob),
     samples,
     sampleRate,
     waveform: waveformValues(analysis),
     spectrum: analysis.spectrum.map((bin) => bin.magnitudeDbFs),
+    spectrumFrequenciesHz: analysis.spectrum.map((bin) => bin.frequencyHz),
+    dynamics: analysis.dynamics.map((bin) => bin.rmsDbFs),
     metrics: toMetrics(analysis),
     deviceLabel,
   };
 }
 
 function makeDemoCaptures() {
-  const diagnostic = createReferenceDiagnostic(48_000);
-  const a = new Float32Array(diagnostic.samples.length);
-  const b = new Float32Array(diagnostic.samples.length);
+  const sampleRate = 48_000;
+  const source = new Float32Array(sampleRate * CAPTURE_SECONDS);
+  const a = new Float32Array(source.length);
+  const b = new Float32Array(source.length);
   let smooth = 0;
   let seed = 0x13579bdf;
-  for (let index = 0; index < diagnostic.samples.length; index += 1) {
+  for (let index = 0; index < source.length; index += 1) {
     seed = (seed * 1_664_525 + 1_013_904_223) >>> 0;
     const noise = (seed / 4_294_967_296) * 2 - 1;
-    const sample = diagnostic.samples[index] ?? 0;
+    const time = index / sampleRate;
+    const isRoomTone = time < 2;
+    const cueStart = time < 8 ? 2 : time < 14 ? 8 : 14;
+    const cueEnd = time < 8 ? 8 : time < 14 ? 14 : 20;
+    const cueEnvelope = isRoomTone
+      ? 0
+      : Math.min(1, (time - cueStart) * 5, (cueEnd - time) * 5);
+    const syllable = isRoomTone
+      ? 0
+      : 0.18 +
+        0.82 * Math.pow(Math.max(0, Math.sin(time * Math.PI * 3.4)), 0.7);
+    const delivery = time >= 8 && time < 14 ? 0.28 : 0.52;
+    const fundamental = 118 + 9 * Math.sin(time * 1.7);
+    const voiced =
+      Math.sin(2 * Math.PI * fundamental * time) * 0.62 +
+      Math.sin(2 * Math.PI * fundamental * 2.03 * time) * 0.24 +
+      Math.sin(2 * Math.PI * fundamental * 3.97 * time) * 0.1;
+    const sample =
+      noise * 0.0025 +
+      cueEnvelope * syllable * delivery * (voiced + noise * 0.12);
+    source[index] = sample;
     smooth += 0.16 * (sample - smooth);
     a[index] = Math.max(-0.98, Math.min(0.98, smooth * 1.07 + noise * 0.012));
     b[index] = Math.tanh((sample + noise * 0.004) * 1.45) * 0.72;
   }
   return {
-    a: makeRecord(
-      "A",
-      a,
-      diagnostic.sampleRate,
-      "Laptop microphone · demonstration",
-    ),
-    b: makeRecord(
-      "B",
-      b,
-      diagnostic.sampleRate,
-      "Wireless headset · demonstration",
-    ),
+    a: makeRecord("A", a, sampleRate, "Laptop microphone · demonstration"),
+    b: makeRecord("B", b, sampleRate, "Wireless headset · demonstration"),
   };
-}
-
-function createObservations(a: CaptureRecord, b: CaptureRecord): Observation[] {
-  const frequencyLeader =
-    a.metrics.highFrequencyRatio > b.metrics.highFrequencyRatio
-      ? "Input A"
-      : "Input B";
-  const noisier =
-    a.metrics.noiseFloorDb > b.metrics.noiseFloorDb ? "Input A" : "Input B";
-  const tighter =
-    a.metrics.dynamicRangeDb < b.metrics.dynamicRangeDb ? "Input A" : "Input B";
-  return [
-    {
-      kind: "frequency",
-      title: `${frequencyLeader} carries more high-frequency energy`,
-      detail:
-        "The difference is most visible in the upper range during speech and the louder section.",
-    },
-    {
-      kind: "noise",
-      title: `${noisier} shows a higher steady noise-floor proxy`,
-      detail:
-        "The silence passage contains more persistent low-level energy in this capture.",
-    },
-    {
-      kind: "dynamics",
-      title: `${tighter}’s peaks appear more tightly controlled`,
-      detail:
-        "Transient spikes are smaller and more consistent relative to the rest of the signal.",
-    },
-  ];
 }
 
 async function sha256(blob: Blob) {
@@ -188,10 +193,16 @@ export function SignalLab() {
   const [permissionMessage, setPermissionMessage] = useState<string>();
   const [captureA, setCaptureA] = useState<CaptureRecord | null>(null);
   const [captureB, setCaptureB] = useState<CaptureRecord | null>(null);
-  const [recording, setRecording] = useState(false);
+  const [capturePhase, setCapturePhase] = useState<CapturePhase>("idle");
   const [captureProgress, setCaptureProgress] = useState(0);
+  const [captureElapsed, setCaptureElapsed] = useState(0);
+  const [captureCountdown, setCaptureCountdown] = useState(
+    GUIDED_READING_COUNT_IN_SECONDS,
+  );
   const [captureError, setCaptureError] = useState<string>();
   const [playing, setPlaying] = useState(false);
+  const [activePlaybackTarget, setActivePlaybackTarget] =
+    useState<PlaybackTarget | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
   const [sessionId, setSessionId] = useState<string>();
   const [enhanced, setEnhanced] = useState<CaptureRecord | null>(null);
@@ -203,15 +214,17 @@ export function SignalLab() {
 
   const appShellRef = useRef<HTMLDivElement>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
-  const referenceRef = useRef<ReferencePlaybackController | null>(null);
-  const referenceStartedAtRef = useRef(0);
   const playbackRef = useRef<PlaybackGroup | null>(null);
+  const playbackSequenceRef = useRef(0);
   const animationRef = useRef<number | null>(null);
+  const captureSequenceRef = useRef(0);
   const captureAbortRef = useRef<AbortController | null>(null);
   const activeStreamRef = useRef<MediaStream | null>(null);
   const playbackSelectionRef = useRef<"original" | "enhanced">("enhanced");
   const enhancedRef = useRef<CaptureRecord | null>(null);
   const mountedRef = useRef(true);
+  const previousStageRef = useRef<ExperimentStage>(stage);
+  const previousCapturePhaseRef = useRef<CapturePhase>(capturePhase);
   const objectUrlsRef = useRef(new Set<string>());
 
   const ownRecord = useCallback((record: CaptureRecord) => {
@@ -248,6 +261,29 @@ export function SignalLab() {
     appShellRef.current?.setAttribute("data-hydrated", "true");
   }, []);
 
+  useEffect(() => {
+    if (previousStageRef.current === stage) return;
+    previousStageRef.current = stage;
+    const frame = window.requestAnimationFrame(() => {
+      const heading =
+        appShellRef.current?.querySelector<HTMLElement>("main .stage h1");
+      heading?.focus({ preventScroll: true });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [stage]);
+
+  useEffect(() => {
+    const previousPhase = previousCapturePhaseRef.current;
+    previousCapturePhaseRef.current = capturePhase;
+    if (previousPhase === "complete" || capturePhase !== "complete") return;
+    const frame = window.requestAnimationFrame(() => {
+      appShellRef.current
+        ?.querySelector<HTMLButtonElement>(".capture-review-actions button")
+        ?.focus({ preventScroll: true });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [capturePhase]);
+
   const ensureAudioContext = useCallback(() => {
     audioContextRef.current ??= new AudioContext({
       sampleRate: 48_000,
@@ -257,20 +293,20 @@ export function SignalLab() {
   }, []);
 
   const stopPlayback = useCallback(() => {
-    referenceRef.current?.stop();
-    referenceRef.current = null;
-    playbackRef.current?.sources.forEach((source) => {
+    playbackSequenceRef.current += 1;
+    if (playbackRef.current) {
       try {
-        source.stop();
+        playbackRef.current.source.stop();
       } catch {
         /* already stopped */
       }
-    });
+    }
     playbackRef.current = null;
     if (animationRef.current !== null)
       cancelAnimationFrame(animationRef.current);
     animationRef.current = null;
     setPlaying(false);
+    setActivePlaybackTarget(null);
   }, []);
 
   const trackPlayback = useCallback(
@@ -333,6 +369,7 @@ export function SignalLab() {
     return () => {
       mountedRef.current = false;
       stopPlayback();
+      captureSequenceRef.current += 1;
       captureAbortRef.current?.abort();
       if (activeStreamRef.current) stopMediaStream(activeStreamRef.current);
       releaseAllRecords();
@@ -354,41 +391,6 @@ export function SignalLab() {
     }
   }, [refreshDevices]);
 
-  const toggleReference = useCallback(async () => {
-    if (playing) {
-      stopPlayback();
-      return;
-    }
-    try {
-      stopPlayback();
-      const context = ensureAudioContext();
-      const controller = await playReferenceDiagnostic(context, {
-        offsetSeconds: currentTime,
-      });
-      referenceRef.current = controller;
-      referenceStartedAtRef.current = context.currentTime;
-      setPlaying(true);
-      trackPlayback(context.currentTime, currentTime, context);
-      void controller.ended.then(() => {
-        if (referenceRef.current === controller) {
-          referenceRef.current = null;
-          setPlaying(false);
-          setCurrentTime(0);
-        }
-      });
-    } catch (error) {
-      setPermissionMessage(displayError(error));
-    }
-  }, [currentTime, ensureAudioContext, playing, stopPlayback, trackPlayback]);
-
-  const seekReference = useCallback(
-    (time: number) => {
-      stopPlayback();
-      setCurrentTime(Math.max(0, Math.min(CAPTURE_SECONDS, time)));
-    },
-    [stopPlayback],
-  );
-
   const createSession = useCallback(async () => {
     if (sessionId) return sessionId;
     const byId = (id: string) =>
@@ -398,7 +400,7 @@ export function SignalLab() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        referenceId: "diagnostic-speech-v1",
+        referenceId: GUIDED_READING_ID,
         devices: {
           inputA: { deviceId: inputA, label: byId(inputA) },
           inputB: { deviceId: inputB, label: byId(inputB) },
@@ -429,6 +431,10 @@ export function SignalLab() {
       await createSession();
       stopPlayback();
       setCurrentTime(0);
+      setCaptureProgress(0);
+      setCaptureElapsed(0);
+      setCaptureCountdown(GUIDED_READING_COUNT_IN_SECONDS);
+      setCapturePhase("idle");
       setStage("Input A");
     } catch (error) {
       setPermissionMessage(displayError(error));
@@ -441,16 +447,39 @@ export function SignalLab() {
       const deviceLabel =
         devices.find((device) => device.deviceId === deviceId)?.label ??
         `Input ${slot}`;
-      setRecording(true);
+      setCapturePhase("arming");
       setCaptureProgress(0);
+      setCaptureElapsed(0);
+      setCaptureCountdown(GUIDED_READING_COUNT_IN_SECONDS);
       setCaptureError(undefined);
       stopPlayback();
+      const captureSequence = captureSequenceRef.current + 1;
+      captureSequenceRef.current = captureSequence;
       const abortController = new AbortController();
       captureAbortRef.current = abortController;
+      let stream: MediaStream | null = null;
+      const isCurrentCapture = () =>
+        captureSequenceRef.current === captureSequence;
       try {
-        const stream = await requestAudioPermission(deviceId);
+        stream = await requestAudioPermission(deviceId);
+        if (abortController.signal.aborted || !isCurrentCapture()) {
+          stopMediaStream(stream);
+          return;
+        }
         activeStreamRef.current = stream;
         const context = ensureAudioContext();
+        if (context.state === "suspended") await context.resume();
+        if (abortController.signal.aborted || !isCurrentCapture()) return;
+        setCapturePhase("countdown");
+        for (
+          let remaining = GUIDED_READING_COUNT_IN_SECONDS;
+          remaining > 0;
+          remaining -= 1
+        ) {
+          setCaptureCountdown(remaining);
+          await abortableDelay(1_000, abortController.signal);
+        }
+        setCaptureCountdown(0);
         const capturePromise = capturePcmWav({
           stream,
           deviceId,
@@ -458,20 +487,27 @@ export function SignalLab() {
           audioContext: context,
           signal: abortController.signal,
           onReady: () => {
-            void playReferenceDiagnostic(context)
-              .then((reference) => {
-                referenceRef.current = reference;
-              })
-              .catch((error) => {
-                setCaptureError(displayError(error));
-                abortController.abort();
-              });
+            if (isCurrentCapture()) setCapturePhase("capturing");
           },
-          onProgress: (progress) => setCaptureProgress(progress.ratio),
+          onProgress: (progress) => {
+            if (!isCurrentCapture()) return;
+            setCaptureProgress(progress.ratio);
+            setCaptureElapsed(progress.elapsedMs / 1_000);
+          },
         });
         const result = await capturePromise;
-        referenceRef.current?.stop();
-        referenceRef.current = null;
+        if (abortController.signal.aborted || !isCurrentCapture()) return;
+        stopMediaStream(stream);
+        if (activeStreamRef.current === stream) activeStreamRef.current = null;
+        const capturedDuration = result.samples.length / result.sampleRate;
+        if (!isCompleteGuidedReadingDuration(capturedDuration)) {
+          throw new Error(
+            "The input ended before the complete 20-second reading was captured. Please record this input again.",
+          );
+        }
+        setCapturePhase("analyzing");
+        await abortableDelay(0, abortController.signal);
+        if (abortController.signal.aborted || !isCurrentCapture()) return;
         const analysis = analyzeAudio(result.samples, result.sampleRate, {
           waveformBins: 620,
           spectrumBins: 120,
@@ -479,91 +515,189 @@ export function SignalLab() {
         });
         const record: CaptureRecord = {
           slot,
+          protocolId: GUIDED_READING_ID,
           blob: result.wav,
           url: URL.createObjectURL(result.wav),
           samples: result.samples,
           sampleRate: result.sampleRate,
           waveform: waveformValues(analysis),
           spectrum: analysis.spectrum.map((bin) => bin.magnitudeDbFs),
+          spectrumFrequenciesHz: analysis.spectrum.map(
+            (bin) => bin.frequencyHz,
+          ),
+          dynamics: analysis.dynamics.map((bin) => bin.rmsDbFs),
           metrics: toMetrics(analysis),
           deviceLabel,
         };
         if (!ownRecord(record)) return;
         if (slot === "A") {
+          releaseRecord(captureA);
           setCaptureA(record);
-          setStage("Input B");
         } else {
+          releaseRecord(captureB);
           setCaptureB(record);
-          setStage("Reveal");
         }
+        setCaptureProgress(1);
+        setCaptureElapsed(Math.min(CAPTURE_SECONDS, capturedDuration));
+        setCapturePhase("complete");
         setCurrentTime(0);
       } catch (error) {
-        if (!abortController.signal.aborted)
+        if (!isCurrentCapture()) return;
+        if (abortController.signal.aborted) {
+          setCapturePhase("idle");
+        } else {
           setCaptureError(displayError(error));
+          setCapturePhase("error");
+        }
       } finally {
-        if (activeStreamRef.current) stopMediaStream(activeStreamRef.current);
-        activeStreamRef.current = null;
-        captureAbortRef.current = null;
-        setRecording(false);
+        if (stream) stopMediaStream(stream);
+        if (activeStreamRef.current === stream) activeStreamRef.current = null;
+        if (captureAbortRef.current === abortController)
+          captureAbortRef.current = null;
       }
     },
-    [devices, ensureAudioContext, inputA, inputB, ownRecord, stopPlayback],
+    [
+      captureA,
+      captureB,
+      devices,
+      ensureAudioContext,
+      inputA,
+      inputB,
+      ownRecord,
+      releaseRecord,
+      stopPlayback,
+    ],
   );
 
   const cancelCapture = useCallback(() => {
+    captureSequenceRef.current += 1;
     captureAbortRef.current?.abort();
-    referenceRef.current?.stop();
-    referenceRef.current = null;
-    setRecording(false);
+    captureAbortRef.current = null;
+    if (activeStreamRef.current) stopMediaStream(activeStreamRef.current);
+    activeStreamRef.current = null;
+    setCapturePhase("idle");
     setCaptureProgress(0);
+    setCaptureElapsed(0);
+    setCaptureCountdown(GUIDED_READING_COUNT_IN_SECONDS);
   }, []);
 
-  const playRecords = useCallback(
-    async (records: CaptureRecord[], offset = currentTime) => {
+  const playRecord = useCallback(
+    async (
+      record: CaptureRecord,
+      target: PlaybackTarget,
+      offset = currentTime,
+    ) => {
       stopPlayback();
+      const requestSequence = playbackSequenceRef.current;
       const context = ensureAudioContext();
       if (context.state === "suspended") await context.resume();
+      if (playbackSequenceRef.current !== requestSequence) return;
       const startAt = context.currentTime + 0.04;
-      const sources = records.map((record) => {
-        const buffer = context.createBuffer(
-          1,
-          record.samples.length,
-          record.sampleRate,
-        );
-        buffer.copyToChannel(new Float32Array(record.samples), 0);
-        const source = context.createBufferSource();
-        source.buffer = buffer;
-        const gain = context.createGain();
-        gain.gain.value = records.length > 1 ? 0.5 : 1;
-        source.connect(gain).connect(context.destination);
-        source.start(startAt, Math.min(offset, buffer.duration));
-        return source;
-      });
-      playbackRef.current = { sources, startedAt: startAt, offset };
+      const buffer = context.createBuffer(
+        1,
+        record.samples.length,
+        record.sampleRate,
+      );
+      buffer.copyToChannel(new Float32Array(record.samples), 0);
+      const source = context.createBufferSource();
+      source.buffer = buffer;
+      source.connect(context.destination);
+      const safeOffset =
+        offset >= buffer.duration
+          ? 0
+          : Math.max(0, Math.min(offset, buffer.duration));
+      source.start(startAt, safeOffset);
+      const sequence = requestSequence + 1;
+      playbackSequenceRef.current = sequence;
+      playbackRef.current = { source, startedAt: startAt, offset: safeOffset };
+      setActivePlaybackTarget(target);
       setPlaying(true);
-      trackPlayback(startAt, offset, context);
-      const first = sources[0];
-      if (first) first.onended = () => setPlaying(false);
+      trackPlayback(startAt, safeOffset, context);
+      source.onended = () => {
+        if (playbackSequenceRef.current !== sequence) return;
+        playbackRef.current = null;
+        setPlaying(false);
+        setActivePlaybackTarget(null);
+      };
     },
     [currentTime, ensureAudioContext, stopPlayback, trackPlayback],
   );
 
   const handleRevealPlay = useCallback(
-    (mode: "A" | "B" | "both") => {
+    (slot: "A" | "B") => {
       if (!captureA || !captureB) return;
-      if (playing) {
+      const target = `capture-${slot}` as const;
+      if (playing && activePlaybackTarget === target) {
         stopPlayback();
         return;
       }
-      void playRecords(
-        mode === "A"
-          ? [captureA]
-          : mode === "B"
-            ? [captureB]
-            : [captureA, captureB],
-      );
+      void playRecord(slot === "A" ? captureA : captureB, target);
     },
-    [captureA, captureB, playRecords, playing, stopPlayback],
+    [
+      activePlaybackTarget,
+      captureA,
+      captureB,
+      playRecord,
+      playing,
+      stopPlayback,
+    ],
+  );
+
+  const handleRevealSelect = useCallback(() => {
+    stopPlayback();
+    setCurrentTime(0);
+  }, [stopPlayback]);
+
+  const continueAfterCapture = useCallback(
+    (slot: "A" | "B") => {
+      stopPlayback();
+      setCurrentTime(0);
+      setCaptureProgress(0);
+      setCaptureElapsed(0);
+      setCaptureCountdown(GUIDED_READING_COUNT_IN_SECONDS);
+      setCapturePhase("idle");
+      setCaptureError(undefined);
+      setStage(slot === "A" ? "Input B" : "Reveal");
+    },
+    [stopPlayback],
+  );
+
+  const retakeCapture = useCallback(
+    (slot: "A" | "B") => {
+      stopPlayback();
+      const record = slot === "A" ? captureA : captureB;
+      releaseRecord(record);
+      if (slot === "A") setCaptureA(null);
+      else setCaptureB(null);
+      setCurrentTime(0);
+      setCaptureProgress(0);
+      setCaptureElapsed(0);
+      setCaptureCountdown(GUIDED_READING_COUNT_IN_SECONDS);
+      setCapturePhase("idle");
+      setCaptureError(undefined);
+    },
+    [captureA, captureB, releaseRecord, stopPlayback],
+  );
+
+  const toggleCaptureReview = useCallback(
+    (slot: "A" | "B") => {
+      const record = slot === "A" ? captureA : captureB;
+      if (!record) return;
+      const target: PlaybackTarget = `capture-${slot}`;
+      if (playing && activePlaybackTarget === target) {
+        stopPlayback();
+        return;
+      }
+      void playRecord(record, target);
+    },
+    [
+      activePlaybackTarget,
+      captureA,
+      captureB,
+      playRecord,
+      playing,
+      stopPlayback,
+    ],
   );
 
   const seekCapture = useCallback(
@@ -798,6 +932,10 @@ export function SignalLab() {
     setEnhanced(null);
     setSessionId(undefined);
     setCaptureProgress(0);
+    setCaptureElapsed(0);
+    setCaptureCountdown(GUIDED_READING_COUNT_IN_SECONDS);
+    setCapturePhase("idle");
+    setCaptureError(undefined);
     setUpgradeEvents([]);
     setCurrentTime(0);
     setStage("Reference");
@@ -813,6 +951,11 @@ export function SignalLab() {
     setCaptureB(null);
     setEnhanced(null);
     setCurrentTime(0);
+    setCaptureProgress(0);
+    setCaptureElapsed(0);
+    setCaptureCountdown(GUIDED_READING_COUNT_IN_SECONDS);
+    setCapturePhase("idle");
+    setCaptureError(undefined);
     setStage("Input A");
   }, [captureA, captureB, releaseRecord, stopPlayback]);
 
@@ -843,13 +986,12 @@ export function SignalLab() {
     const next = playbackSelectionRef.current;
     playbackSelectionRef.current =
       next === "original" ? "enhanced" : "original";
-    void playRecords([next === "original" ? captureA : enhanced]);
-  }, [captureA, enhanced, playRecords, playing, stopPlayback]);
+    void playRecord(
+      next === "original" ? captureA : enhanced,
+      next === "original" ? "original" : "enhanced",
+    );
+  }, [captureA, enhanced, playRecord, playing, stopPlayback]);
 
-  const observations = useMemo(
-    () => (captureA && captureB ? createObservations(captureA, captureB) : []),
-    [captureA, captureB],
-  );
   const selectedLabel = (slot: "A" | "B") => {
     const id = slot === "A" ? inputA : inputB;
     return (
@@ -892,8 +1034,6 @@ export function SignalLab() {
             confirmedB={confirmedB}
             permissionState={permissionState}
             permissionMessage={permissionMessage}
-            playing={playing}
-            currentTime={currentTime}
             onInputA={(id) => {
               setInputA(id);
               setConfirmedA(false);
@@ -905,8 +1045,6 @@ export function SignalLab() {
             onConfirmA={() => setConfirmedA(true)}
             onConfirmB={() => setConfirmedB(true)}
             onRequestPermission={() => void requestPermission()}
-            onToggleReference={() => void toggleReference()}
-            onSeekReference={seekReference}
             onBegin={() => void beginInputA()}
           />
         ) : null}
@@ -914,32 +1052,51 @@ export function SignalLab() {
           <CaptureStage
             slot="A"
             deviceLabel={selectedLabel("A")}
-            recording={recording}
+            phase={capturePhase}
             progress={captureProgress}
+            elapsedSeconds={captureElapsed}
+            countdownSeconds={captureCountdown}
             error={captureError}
+            reviewPlaying={playing && activePlaybackTarget === "capture-A"}
             onStart={() => void startCapture("A")}
             onCancel={cancelCapture}
+            onContinue={() => continueAfterCapture("A")}
+            onRetake={() => retakeCapture("A")}
+            onToggleReview={() => toggleCaptureReview("A")}
           />
         ) : null}
         {stage === "Input B" ? (
           <CaptureStage
             slot="B"
             deviceLabel={selectedLabel("B")}
-            recording={recording}
+            phase={capturePhase}
             progress={captureProgress}
+            elapsedSeconds={captureElapsed}
+            countdownSeconds={captureCountdown}
             error={captureError}
+            reviewPlaying={playing && activePlaybackTarget === "capture-B"}
             onStart={() => void startCapture("B")}
             onCancel={cancelCapture}
+            onContinue={() => continueAfterCapture("B")}
+            onRetake={() => retakeCapture("B")}
+            onToggleReview={() => toggleCaptureReview("B")}
           />
         ) : null}
         {stage === "Reveal" && captureA && captureB ? (
           <RevealStage
             captureA={captureA}
             captureB={captureB}
-            observations={observations}
             playing={playing}
+            activeTrack={
+              activePlaybackTarget === "capture-A"
+                ? "A"
+                : activePlaybackTarget === "capture-B"
+                  ? "B"
+                  : null
+            }
             currentTime={currentTime}
             signalMode={SIGNAL_MODE}
+            onSelect={handleRevealSelect}
             onPlay={handleRevealPlay}
             onSeek={seekCapture}
             onRepeat={repeatCaptures}

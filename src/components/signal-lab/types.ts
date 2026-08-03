@@ -15,20 +15,17 @@ export type CaptureMetrics = {
 
 export type CaptureRecord = {
   slot: "A" | "B";
+  protocolId: string;
   blob: Blob;
   url: string;
   samples: Float32Array;
   sampleRate: number;
   waveform: number[];
   spectrum: number[];
+  spectrumFrequenciesHz: number[];
+  dynamics: number[];
   metrics: CaptureMetrics;
   deviceLabel: string;
-};
-
-export type Observation = {
-  title: string;
-  detail: string;
-  kind: "frequency" | "noise" | "dynamics";
 };
 
 export type UpgradeEvent = {

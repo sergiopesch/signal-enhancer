@@ -2,6 +2,7 @@ import { unstable_checkRateLimit } from "@vercel/firewall";
 import { randomUUID } from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
 
+import { GUIDED_READING_VERSION } from "@/lib/audio/reading-passage";
 import { createSessionSchema } from "@/lib/server/contracts";
 import { getEnvironment } from "@/lib/server/env";
 import {
@@ -52,6 +53,8 @@ export async function POST(request: NextRequest) {
         publicId,
         sessionHash: hashSession(token),
         networkHash: hashNetwork(request),
+        referenceId: input.referenceId,
+        referenceRevision: GUIDED_READING_VERSION,
         ...(input.devices ? { deviceMetadata: input.devices } : {}),
       });
     }
@@ -59,6 +62,8 @@ export async function POST(request: NextRequest) {
     const response = NextResponse.json(
       {
         sessionId: publicId,
+        referenceId: input.referenceId,
+        referenceRevision: GUIDED_READING_VERSION,
         mode: environment.SIGNAL_MODE,
         expiresAt: expiresAt.toISOString(),
         uploadEnabled: environment.SIGNAL_MODE === "live",

@@ -1,6 +1,10 @@
 import { FatalError, getWritable } from "workflow";
 
 import {
+  GUIDED_READING_ID,
+  GUIDED_READING_VERSION,
+} from "@/lib/audio/reading-passage";
+import {
   createPrivateReadUrl,
   createResultPutUrl,
   MAX_CAPTURE_BYTES,
@@ -9,6 +13,7 @@ import { workerResultSchema } from "@/lib/server/contracts";
 import { requireLiveEnvironment } from "@/lib/server/env";
 import {
   appendJobEvent,
+  getExperimentSessionById,
   getJobById,
   getSessionCaptures,
   updateJobState,
@@ -71,7 +76,17 @@ async function prepareUpgrade(jobId: string): Promise<PreparedUpgrade> {
   "use step";
 
   const job = await getJobById(jobId);
-  const captureRows = await getSessionCaptures(job.sessionId);
+  const [captureRows, session] = await Promise.all([
+    getSessionCaptures(job.sessionId),
+    getExperimentSessionById(job.sessionId),
+  ]);
+  if (
+    session.referenceId !== GUIDED_READING_ID ||
+    session.referenceRevision !== GUIDED_READING_VERSION
+  )
+    throw new FatalError(
+      "This upgrade worker does not support the session capture protocol.",
+    );
   const inputA = captureRows.find((capture) => capture.slot === "A");
   const inputB = captureRows.find((capture) => capture.slot === "B");
   if (!inputA || !inputB)
@@ -143,7 +158,10 @@ async function prepareUpgrade(jobId: string): Promise<PreparedUpgrade> {
       schema_version: "1",
       job_id: job.id,
       attempt_id: attemptId,
-      reference: { id: "diagnostic-speech", revision: "v1" },
+      reference: {
+        id: session.referenceId,
+        revision: session.referenceRevision,
+      },
       inputs: {
         a: inputDescriptor(inputA, inputAUrl),
         b: inputDescriptor(inputB, inputBUrl),

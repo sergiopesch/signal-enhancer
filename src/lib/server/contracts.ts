@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { GUIDED_READING_ID } from "@/lib/audio/reading-passage";
+
 export const deviceMetadataSchema = z
   .object({
     inputA: z
@@ -15,9 +17,7 @@ export const deviceMetadataSchema = z
 
 export const createSessionSchema = z
   .object({
-    referenceId: z
-      .literal("diagnostic-speech-v1")
-      .default("diagnostic-speech-v1"),
+    referenceId: z.literal(GUIDED_READING_ID).default(GUIDED_READING_ID),
     devices: deviceMetadataSchema.optional(),
   })
   .strict();
