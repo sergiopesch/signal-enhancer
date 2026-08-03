@@ -1,13 +1,21 @@
 import type { NextRequest } from "next/server";
 
-import { capturePathname, createCapturePutUrl } from "@/lib/server/blob";
+import {
+  captureGrantValidUntil,
+  capturePathname,
+  createCapturePutUrl,
+} from "@/lib/server/blob";
 import { uploadAuthorizationSchema } from "@/lib/server/contracts";
 import {
   assertSameOrigin,
   safeErrorResponse,
   SignalError,
 } from "@/lib/server/errors";
-import { requireOwnedSession } from "@/lib/server/repository";
+import {
+  requireOwnedSession,
+  releaseCaptureUploadGrant,
+  reserveCaptureUploadGrant,
+} from "@/lib/server/repository";
 import { readSessionToken } from "@/lib/server/session";
 
 export const dynamic = "force-dynamic";
@@ -29,11 +37,54 @@ export async function POST(request: NextRequest) {
         "The capture does not belong to this session.",
         403,
       );
-    await requireOwnedSession(identity.publicId, identity.sessionHash);
-    const pathname = capturePathname(identity.publicId, input.slot);
-    const upload = await createCapturePutUrl(pathname);
+    const session = await requireOwnedSession(
+      identity.publicId,
+      identity.sessionHash,
+    );
+    const validUntil = captureGrantValidUntil(session.expiresAt);
+    const grant = await reserveCaptureUploadGrant(
+      session.id,
+      identity.publicId,
+      input.slot,
+      input.bytes,
+      input.sha256,
+      new Date(validUntil),
+    );
+    if (grant.status === "committed")
+      return Response.json(
+        {
+          committed: true,
+          captureId: grant.captureId,
+          pathname: grant.pathname,
+        },
+        { headers: { "Cache-Control": "no-store" } },
+      );
+    const pathname = capturePathname(
+      identity.publicId,
+      input.slot,
+      grant.attempt,
+    );
+    if (pathname !== grant.pathname)
+      throw new SignalError(
+        "capture_grant_mismatch",
+        "The private capture grant could not be verified.",
+        503,
+      );
+    let upload: Awaited<ReturnType<typeof createCapturePutUrl>>;
+    try {
+      upload = await createCapturePutUrl(pathname, validUntil);
+    } catch (error) {
+      await releaseCaptureUploadGrant(
+        session.id,
+        input.slot,
+        grant.attempt,
+        grant.authorizationCount,
+      );
+      throw error;
+    }
     return Response.json(
       {
+        committed: false,
         pathname,
         uploadUrl: upload.url,
         method: "PUT",

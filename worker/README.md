@@ -91,21 +91,27 @@ match the artifact content type, and cap size at or below the declared `max_byte
 Python 3.11 or 3.12 is supported. Production uses Python 3.12.
 
 ```bash
-python3.12 -m venv .venv
-. .venv/bin/activate
-python -m pip install -e '.[dev]'
+uv sync --extra dev --frozen
 SIGNAL_ENVIRONMENT=development \
 SIGNAL_ENDPOINT_SECRET=local-only-secret \
 SIGNAL_ALLOWED_STORAGE_HOSTS=storage.example \
 SIGNAL_BUILD_REVISION=local-dev \
-uvicorn signal_enhancer_worker.app:app --reload --port 7860
-pytest
-ruff check .
-mypy
+uv run uvicorn signal_enhancer_worker.app:app --reload --port 7860
+uv run pytest
+uv run ruff check .
+uv run mypy
 ```
 
 Tests use an in-memory HTTP transport; they never need Blob credentials, model packages, or a
 GPU.
+
+To exercise the production dependency boundary locally, install the committed model extra and
+run the same import and compatibility checks as CI:
+
+```bash
+uv sync --extra dev --extra resemble --frozen
+uv pip check --python .venv/bin/python
+```
 
 ## Container and Hugging Face
 
@@ -130,13 +136,28 @@ docker build --platform linux/amd64 \
 
 The model source revision is pinned in `pyproject.toml`; model files must also be pinned from
 `ResembleAI/resemble-enhance@4e3510ce4a8391159f665903544c5150bee7b2cb` and mounted at
-`SIGNAL_RESEMBLE_RUN_DIR`. Startup verifies the required files are already present so the
-upstream package can never fall back to its floating network download. Promote the published
-image by immutable digest rather than a floating tag. Keep endpoint minimum replicas at zero and
-maximum replicas at one during the beta, and let the durable Vercel workflow handle bounded
-cold-start retries.
+`SIGNAL_RESEMBLE_RUN_DIR`. Before importing Torch or calling upstream `torch.load`, startup
+verifies that `mp_rank_00_model_states.pt` has SHA-256
+`f9d035f318de3e6d919bc70cf7ad7d32b4fe92ec5cbe0b30029a27f5db07d9d6`. A missing or altered
+checkpoint fails readiness, and the upstream package can never fall back to its floating network
+download. Promote the published image by immutable digest rather than a floating tag. Keep
+endpoint minimum replicas at zero and maximum replicas at one during the beta, and let the durable
+Vercel workflow handle bounded cold-start retries.
+
+The Linux lock resolves Torch's CUDA 13 runtime. Treat a successful `/health` probe on the target
+GPU instance as a promotion gate; the worker fails closed when its configured CUDA device is not
+available.
 
 The optional dependency is
 [Resemble Enhance](https://github.com/resemble-ai/resemble-enhance), pinned to
 `8e978149bfe8abab3eb77d965d579a111afdb0ff`. Its MIT notice is recorded in
 `THIRD_PARTY_NOTICES.md` and remains present in the installed distribution.
+
+The production dependency set is resolved in `uv.lock`, including the newest compatible
+TorchAudio maintenance release. CI installs the complete `resemble` extra, smoke-tests the
+Resemble import path and the exact TorchAudio operations it uses, checks installed-package
+compatibility, and audits every registry package from a hash-locked export. The Resemble source
+distribution is not represented in PyPI's advisory database; CI therefore asserts its exact Git
+revision before excluding that single line from the registry audit. Changing either the source
+revision or model revision requires a fresh source review, checkpoint-load test, and dependency
+audit.

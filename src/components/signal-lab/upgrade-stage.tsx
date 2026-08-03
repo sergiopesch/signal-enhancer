@@ -244,7 +244,7 @@ function UpgradeProgress({
               label: "Route",
               value:
                 mode === "live"
-                  ? "Restoration · v1.0.0"
+                  ? "Protected worker · receipt on completion"
                   : "Local DSP · browser-v1",
             },
           ]}
@@ -341,7 +341,7 @@ function UpgradeResult({
           </h1>
           <p>
             {mode === "live"
-              ? "A measured restoration pass inferred detail and gently controlled dynamics."
+              ? "The protected worker returned a result for direct comparison; its exact routing and versions remain in the backend receipt."
               : "Fixed filters and restrained dynamics shaped this browser-only preview; no AI model was used."}
           </p>
           <span>Enhanced from Input A · {source.deviceLabel}</span>
@@ -386,7 +386,7 @@ function UpgradeResult({
               { label: "Comparison", value: "Loudness matched" },
               {
                 label: "Pipeline",
-                value: mode === "live" ? "v1.0.0" : "browser-v1",
+                value: mode === "live" ? "Backend receipt" : "browser-v1",
               },
             ]}
           />
@@ -406,19 +406,19 @@ function UpgradeResult({
               <ul>
                 <li>
                   <Activity size={19} />
-                  Steady background energy reduced
+                  Protected worker route completed
                 </li>
                 <li>
                   <Waves size={19} />
-                  Upper-range detail inferred above the original roll-off
+                  Enhanced WAV receipt validated
                 </li>
                 <li>
                   <SlidersHorizontal size={19} />
-                  Peaks gently controlled
+                  Output path matched this processing attempt
                 </li>
                 <li>
                   <FileText size={19} />
-                  Output loudness matched for a fair comparison
+                  Exact routing and versions recorded server-side
                 </li>
               </ul>
             ) : (
@@ -461,17 +461,17 @@ function UpgradeResult({
                   <dt>Restoration route</dt>
                   <dd>
                     {mode === "live"
-                      ? "Detail + dynamics"
+                      ? "Backend-reported receipt"
                       : "Local DSP preview"}
                   </dd>
                 </div>
                 <div>
                   <dt>DSP finish</dt>
-                  <dd>Transparency mode</dd>
+                  <dd>{mode === "live" ? "Recorded" : "Transparency mode"}</dd>
                 </div>
                 <div>
                   <dt>Pipeline version</dt>
-                  <dd>{mode === "live" ? "v1.0.0" : "browser-v1"}</dd>
+                  <dd>{mode === "live" ? "Backend receipt" : "browser-v1"}</dd>
                 </div>
               </dl>
             </div>
@@ -494,7 +494,9 @@ function UpgradeResult({
           </button>
           <p className="privacy-note">
             <Info size={16} />
-            Session audio expires automatically after 24 hours.
+            {mode === "live"
+              ? "Cloud access expires after 24 hours."
+              : "Audio stays in this tab and is released when you reset or close it."}
           </p>
         </aside>
       </div>

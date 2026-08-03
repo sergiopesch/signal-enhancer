@@ -101,7 +101,7 @@ During a cold start, use “Warming upgrade engine” and “This can take longe
 - Three session starts per hour per network identifier as an initial abuse backstop.
 - A configurable global daily job cap; production starts at 100 jobs/day until measured costs justify a change.
 - Private Blob storage only.
-- Session audio and derived files expire after 24 hours.
+- Access to session audio and derived files expires with the 24-hour session; authenticated cleanup deletes tracked objects after expiry and keeps discovery rows through the bounded write-drain before cascade.
 - No microphone data leaves the browser before the user presses **Upgrade Signal**.
 - A failed or timed-out AI pass preserves the local DSP preview and explains that the deeper restoration was unavailable.
 

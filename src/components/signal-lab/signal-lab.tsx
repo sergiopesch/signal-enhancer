@@ -433,13 +433,6 @@ export function SignalLab() {
           },
           onProgress: (progress) => setCaptureProgress(progress.ratio),
         });
-        if (slot === "B" && SIGNAL_MODE === "live" && sessionId) {
-          void fetch("/api/upgrades/warm", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ sessionId }),
-          });
-        }
         const result = await capturePromise;
         referenceRef.current?.stop();
         referenceRef.current = null;
@@ -477,7 +470,7 @@ export function SignalLab() {
         setRecording(false);
       }
     },
-    [devices, ensureAudioContext, inputA, inputB, sessionId, stopPlayback],
+    [devices, ensureAudioContext, inputA, inputB, stopPlayback],
   );
 
   const cancelCapture = useCallback(() => {
@@ -546,10 +539,16 @@ export function SignalLab() {
 
   const uploadCapture = useCallback(
     async (session: string, record: CaptureRecord) => {
+      const captureSha256 = await sha256(record.blob);
       const authorize = await fetch("/api/sessions/uploads/authorize", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId: session, slot: record.slot }),
+        body: JSON.stringify({
+          sessionId: session,
+          slot: record.slot,
+          bytes: record.blob.size,
+          sha256: captureSha256,
+        }),
       });
       if (!authorize.ok)
         throw new Error(
@@ -557,16 +556,20 @@ export function SignalLab() {
             "Private upload could not be authorized.",
         );
       const grant = (await authorize.json()) as {
+        committed: boolean;
         pathname: string;
-        uploadUrl: string;
-        headers: Record<string, string>;
+        uploadUrl?: string;
+        headers?: Record<string, string>;
       };
+      if (grant.committed) return;
+      if (!grant.uploadUrl || !grant.headers)
+        throw new Error("The private upload grant was incomplete.");
       const uploaded = await fetch(grant.uploadUrl, {
         method: "PUT",
         headers: grant.headers,
         body: record.blob,
       });
-      if (!uploaded.ok)
+      if (!uploaded.ok && uploaded.status !== 409)
         throw new Error("The capture could not be placed in private storage.");
       const committed = await fetch("/api/sessions/uploads/commit", {
         method: "POST",
@@ -576,7 +579,7 @@ export function SignalLab() {
           slot: record.slot,
           pathname: grant.pathname,
           bytes: record.blob.size,
-          sha256: await sha256(record.blob),
+          sha256: captureSha256,
           durationMs: Math.round(
             (record.samples.length / record.sampleRate) * 1_000,
           ),
@@ -891,6 +894,7 @@ export function SignalLab() {
             observations={observations}
             playing={playing}
             currentTime={currentTime}
+            signalMode={SIGNAL_MODE}
             onPlay={handleRevealPlay}
             onSeek={seekCapture}
             onRepeat={repeatCaptures}

@@ -18,6 +18,7 @@ type RevealStageProps = {
   observations: readonly Observation[];
   playing: boolean;
   currentTime: number;
+  signalMode: "demo" | "live";
   onPlay: (mode: "A" | "B" | "both") => void;
   onSeek: (time: number) => void;
   onRepeat: () => void;
@@ -70,6 +71,7 @@ export function RevealStage({
   observations,
   playing,
   currentTime,
+  signalMode,
   onPlay,
   onSeek,
   onRepeat,
@@ -199,7 +201,9 @@ export function RevealStage({
             </button>
             <p className="privacy-note">
               <Info size={16} />
-              Session audio expires after 24 hours.
+              {signalMode === "live"
+                ? "Cloud access expires after 24 hours."
+                : "Audio stays in this tab and is released when you reset or close it."}
             </p>
           </div>
         </aside>
@@ -300,7 +304,9 @@ export function RevealStage({
         </button>
         <p className="privacy-note">
           <Info size={16} />
-          Session audio expires after 24 hours.
+          {signalMode === "live"
+            ? "Cloud access expires after 24 hours."
+            : "Audio stays in this tab and is released when you reset or close it."}
         </p>
       </div>
     </section>

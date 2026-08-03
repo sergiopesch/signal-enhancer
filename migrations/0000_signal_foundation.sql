@@ -45,6 +45,30 @@ CREATE UNIQUE INDEX IF NOT EXISTS "captures_pathname_idx" ON "captures" ("pathna
 --> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "captures_expiry_idx" ON "captures" ("expires_at");
 --> statement-breakpoint
+CREATE TABLE IF NOT EXISTS "capture_upload_grants" (
+  "session_id" uuid NOT NULL REFERENCES "experiment_sessions"("id") ON DELETE CASCADE,
+  "slot" text NOT NULL,
+  "attempt" integer NOT NULL,
+  "pathname" text NOT NULL,
+  "expected_bytes" integer NOT NULL,
+  "expected_sha256" text NOT NULL,
+  "authorization_count" integer DEFAULT 1 NOT NULL,
+  "verification_count" integer DEFAULT 0 NOT NULL,
+  "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+  "expires_at" timestamp with time zone NOT NULL,
+  CONSTRAINT "capture_upload_grants_pk" PRIMARY KEY ("session_id", "slot", "attempt"),
+  CONSTRAINT "capture_upload_grants_slot_check" CHECK ("slot" IN ('A', 'B')),
+  CONSTRAINT "capture_upload_grants_attempt_check" CHECK ("attempt" BETWEEN 1 AND 2),
+  CONSTRAINT "capture_upload_grants_bytes_check" CHECK ("expected_bytes" BETWEEN 44 AND 4194304),
+  CONSTRAINT "capture_upload_grants_sha_check" CHECK ("expected_sha256" ~ '^[a-f0-9]{64}$'),
+  CONSTRAINT "capture_upload_grants_authorization_count_check" CHECK ("authorization_count" BETWEEN 0 AND 2),
+  CONSTRAINT "capture_upload_grants_verification_count_check" CHECK ("verification_count" BETWEEN 0 AND 2)
+);
+--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "capture_upload_grants_pathname_idx" ON "capture_upload_grants" ("pathname");
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "capture_upload_grants_expiry_idx" ON "capture_upload_grants" ("expires_at");
+--> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "upgrade_jobs" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
   "public_id" uuid DEFAULT gen_random_uuid() NOT NULL,

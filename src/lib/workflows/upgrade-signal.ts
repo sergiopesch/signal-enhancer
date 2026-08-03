@@ -80,18 +80,35 @@ async function prepareUpgrade(jobId: string): Promise<PreparedUpgrade> {
     );
 
   const attemptId = crypto.randomUUID();
-  const inputAUrl = await createPrivateReadUrl(inputA.pathname);
-  const inputBUrl = await createPrivateReadUrl(inputB.pathname);
+  const inputAUrl = await createPrivateReadUrl(
+    inputA.pathname,
+    "get",
+    job.expiresAt,
+  );
+  const inputBUrl = await createPrivateReadUrl(
+    inputB.pathname,
+    "get",
+    job.expiresAt,
+  );
   const outputRoot = `sessions/${job.sessionId}/results/${job.id}/${attemptId}`;
   const resultPaths = {
     enhanced: `${outputRoot}/enhanced.wav`,
     difference: `${outputRoot}/difference.json`,
     report: `${outputRoot}/report.json`,
   };
+  await updateJobState(jobId, "processing", {
+    resultPathname: resultPaths.enhanced,
+    differencePathname: resultPaths.difference,
+    reportPathname: resultPaths.report,
+  });
   const [enhancedUrl, differenceUrl, reportUrl] = await Promise.all([
-    createResultPutUrl(resultPaths.enhanced, "audio/wav"),
-    createResultPutUrl(resultPaths.difference, "application/json"),
-    createResultPutUrl(resultPaths.report, "application/json"),
+    createResultPutUrl(resultPaths.enhanced, "audio/wav", job.expiresAt),
+    createResultPutUrl(
+      resultPaths.difference,
+      "application/json",
+      job.expiresAt,
+    ),
+    createResultPutUrl(resultPaths.report, "application/json", job.expiresAt),
   ]);
 
   const expiresAt = (validUntil: number) => new Date(validUntil).toISOString();

@@ -37,7 +37,7 @@ export async function GET(
     const events = await listJobEvents(job.id);
     const result =
       job.state === "completed" && job.resultPathname
-        ? await createPrivateReadUrl(job.resultPathname)
+        ? await createPrivateReadUrl(job.resultPathname, "get", job.expiresAt)
         : null;
     return Response.json(
       {
