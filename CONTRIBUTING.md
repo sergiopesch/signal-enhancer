@@ -49,7 +49,7 @@ User-interface changes should preserve:
 - full functionality with `prefers-reduced-motion`;
 - narrow mobile layouts without horizontal page scrolling.
 
-Follow the phase-aperture identity and calibrated editorial instrument described in [Brand System v2](docs/brand-redesign/BRAND_SYSTEM_V2.md). Avoid gradients, glow, glass effects, ornamental shadows, generic metric-card grids, and decorative waveform motion.
+Follow the dual-signal enhancement-gate identity and calibrated editorial instrument described in [Brand System v2](docs/brand-redesign/BRAND_SYSTEM_V2.md). Avoid gradients, glow, glass effects, ornamental shadows, generic metric-card grids, and decorative waveform motion.
 
 ## Local setup
 

@@ -59,7 +59,7 @@ No glow is used as decoration. A small controlled halo is allowed only around a 
 
 ## Component families
 
-- `SignalMark` — compact waveform brand mark.
+- `SignalMark` — dual-input mark with one visually isolated enhancement gate and two lane-preserving outputs.
 - `ExperimentStepper` — five-stage desktop and compact mobile variants.
 - `DeviceSelector` — browser-reported label, input kind, confirmation, and uncertainty.
 - `ReadingGuide` — full 36-word passage, four timed cues, silent practice, count-in, and active phrase.
@@ -77,19 +77,19 @@ No glow is used as decoration. A small controlled halo is allowed only around a 
 
 Use one coherent 1.5 px rounded-stroke family. Lucide may be used only where its metaphor and optical weight match.
 
-| Icon                 | Meaning                 | Treatment                                                          |
-| -------------------- | ----------------------- | ------------------------------------------------------------------ |
-| waveform mark        | brand/signal            | custom SVG, cyan, no container                                     |
-| microphone           | selected input          | outline, 18–20 px                                                  |
-| headphones           | headset input           | outline, 18–20 px                                                  |
-| chevron down         | selector disclosure     | outline, 16 px                                                     |
-| check circle         | confirmed/completed     | outline, semantic signal color                                     |
-| play/pause           | transport               | filled triangle / outlined pause within circular primary transport |
-| skip previous/next   | transport               | outline/filled hybrid matching concept                             |
-| repeat               | restart captures        | outline, 18 px                                                     |
-| download             | enhanced WAV            | outline, 18 px                                                     |
-| info                 | limitation/privacy note | outline, 16 px                                                     |
-| analysis-stage icons | workflow stages         | restrained outline, 18 px; no decorative substitutions             |
+| Icon                  | Meaning                 | Treatment                                                          |
+| --------------------- | ----------------------- | ------------------------------------------------------------------ |
+| enhancement-gate mark | brand/signal processing | custom dual-color SVG with one warm-white enhancement gate         |
+| microphone            | selected input          | outline, 18–20 px                                                  |
+| headphones            | headset input           | outline, 18–20 px                                                  |
+| chevron down          | selector disclosure     | outline, 16 px                                                     |
+| check circle          | confirmed/completed     | outline, semantic signal color                                     |
+| play/pause            | transport               | filled triangle / outlined pause within circular primary transport |
+| skip previous/next    | transport               | outline/filled hybrid matching concept                             |
+| repeat                | restart captures        | outline, 18 px                                                     |
+| download              | enhanced WAV            | outline, 18 px                                                     |
+| info                  | limitation/privacy note | outline, 16 px                                                     |
+| analysis-stage icons  | workflow stages         | restrained outline, 18 px; no decorative substitutions             |
 
 ## Motion
 

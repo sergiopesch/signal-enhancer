@@ -4,16 +4,16 @@ This index separates the current product and brand contracts from historical des
 
 ## Start here
 
-| Document                                                   | Authority                                                                                         |
-| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| [Product specification](PRODUCT_SPEC.md)                   | Canonical journey, claim boundaries, privacy promises, success criteria, and deferred scope       |
-| [Architecture](ARCHITECTURE.md)                            | Deployment topology, data flow, trust boundaries, storage, jobs, quotas, and environment contract |
-| [Brand research](brand-redesign/BRAND_RESEARCH.md)         | Competitive research, positioning, voice principles, and anti-copy guardrails                     |
-| [Brand System v2](brand-redesign/BRAND_SYSTEM_V2.md)       | Current phase-aperture identity, palette, typography, layout, interaction, motion, and copy rules |
-| [Brand fidelity ledger](brand-redesign/FIDELITY_LEDGER.md) | Concept-to-code comparison, implementation captures, accessibility, and interaction verification  |
-| [Worker guide](../worker/README.md)                        | FastAPI contract, configuration, validation limits, local checks, container, and HF deployment    |
-| [Security policy](../SECURITY.md)                          | Private reporting, supported version, trust boundaries, secret handling, and data lifetime        |
-| [Contributing](../CONTRIBUTING.md)                         | Issue proposals, the paused code-PR policy, and required quality gates                            |
+| Document                                                   | Authority                                                                                           |
+| ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| [Product specification](PRODUCT_SPEC.md)                   | Canonical journey, claim boundaries, privacy promises, success criteria, and deferred scope         |
+| [Architecture](ARCHITECTURE.md)                            | Deployment topology, data flow, trust boundaries, storage, jobs, quotas, and environment contract   |
+| [Brand research](brand-redesign/BRAND_RESEARCH.md)         | Competitive research, positioning, voice principles, and anti-copy guardrails                       |
+| [Brand System v2](brand-redesign/BRAND_SYSTEM_V2.md)       | Current enhancement-gate identity, palette, typography, layout, interaction, motion, and copy rules |
+| [Brand fidelity ledger](brand-redesign/FIDELITY_LEDGER.md) | Concept-to-code comparison, implementation captures, accessibility, and interaction verification    |
+| [Worker guide](../worker/README.md)                        | FastAPI contract, configuration, validation limits, local checks, container, and HF deployment      |
+| [Security policy](../SECURITY.md)                          | Private reporting, supported version, trust boundaries, secret handling, and data lifetime          |
+| [Contributing](../CONTRIBUTING.md)                         | Issue proposals, the paused code-PR policy, and required quality gates                              |
 
 ## Current experience contract
 

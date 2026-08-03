@@ -1,12 +1,12 @@
 <div align="center">
-  <img src="public/icon.svg" width="72" height="72" alt="Signal Enhancer phase-aperture mark">
+  <img src="public/icon.svg" width="72" height="72" alt="Signal Enhancer dual-signal enhancement-gate mark">
 
   <h1>Signal Enhancer</h1>
   <p><strong>Every input leaves a trace.</strong></p>
   <p>A calibrated editorial instrument for inspecting two guided readings, one input at a time.</p>
 </div>
 
-![Signal Enhancer minimal homepage: an editorial invitation beside the phase-aperture signal horizon](docs/brand-redesign/implementation/00-home-desktop.png)
+![Signal Enhancer minimal homepage: an editorial invitation beside the finite signal horizon](docs/brand-redesign/implementation/00-home-desktop.png)
 
 Signal Enhancer guides the same versioned 36-word script through Input A and Input B in two separate 20-second readings, then lets you inspect one recording at a time. It offers a restrained browser-only DSP preview and an opt-in path to deeper speech restoration without ranking hardware, promising a “raw” signal, or presenting inferred detail as recovered fact.
 
@@ -22,7 +22,7 @@ Signal Enhancer guides the same versioned 36-word script through Input A and Inp
 - Preview a transparent, non-AI local DSP pass.
 - Choose **Upgrade Input A** and, in an explicitly configured live environment, run one durable deep-upgrade job while the backend records its route, measurements, versions, and enhanced-WAV hash.
 
-The phase-aperture mark expresses that method: two equal traces approach a narrow capture plane and leave with a visible relationship. The interface follows the same principle—mineral black around one warm measurement surface, ultramarine and vermilion reserved for A/B identity, and provenance shown as part of the instrument rather than hidden in decorative chrome.
+The dual-signal enhancement-gate mark expresses that method: two distinct input traces approach one isolated processing stage, retain their identity, and leave as simpler, separate outputs. The interface follows the same principle—mineral black around one warm measurement surface, ultramarine and vermilion reserved for A/B identity, and provenance shown as part of the instrument rather than hidden in decorative chrome.
 
 ## Demo and live mode are intentionally different
 
@@ -164,7 +164,7 @@ Start with the [documentation index](docs/README.md).
 | [Product specification](docs/PRODUCT_SPEC.md)                   | Canonical journey, product claims, privacy, and deferred scope     |
 | [Architecture](docs/ARCHITECTURE.md)                            | Web, storage, workflow, worker, and deployment contracts           |
 | [Brand research](docs/brand-redesign/BRAND_RESEARCH.md)         | Competitive study, voice, and differentiation                      |
-| [Brand System v2](docs/brand-redesign/BRAND_SYSTEM_V2.md)       | Phase-aperture identity, palette, type, layout, motion, and copy   |
+| [Brand System v2](docs/brand-redesign/BRAND_SYSTEM_V2.md)       | Enhancement-gate identity, palette, type, layout, motion, and copy |
 | [Brand fidelity ledger](docs/brand-redesign/FIDELITY_LEDGER.md) | Concept-to-code evidence and interaction verification              |
 | [Worker guide](worker/README.md)                                | FastAPI contract, local checks, image, and endpoint settings       |
 | [Contributing](CONTRIBUTING.md)                                 | Issue policy, paused code PRs, quality, privacy, and accessibility |

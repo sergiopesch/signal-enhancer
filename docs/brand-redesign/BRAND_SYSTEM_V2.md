@@ -20,12 +20,13 @@ Signal Enhancer behaves like a premium scientific publication turned into an aud
 
 ### Mark
 
-The mark is a **phase aperture**:
+The mark is a **dual-signal enhancement gate**:
 
-- two offset traces approach a narrow vertical capture gate;
-- they cross the plane and leave with a visible relationship;
-- the blue and vermilion paths receive equal visual weight;
-- at 16 px, it reduces to two stepped paths and one white aperture;
+- two irregular stepped input traces approach one narrow vertical enhancement gate;
+- the uninterrupted warm-white gate is drawn in front of both transitions, so it visibly receives both channels and reads as the processing stage rather than another signal;
+- each trace keeps its color and lane through the transformation: blue remains above and vermilion remains below, with no ambiguous crossover;
+- the outputs resolve into simpler stepped paths while retaining equal color and visual weight;
+- at 16 px, it reduces to two inputs, one white gate, and two clearly separated outputs;
 - it is never animated without measured signal state.
 
 It is not a waveform, equalizer, speaker, microphone, sparkle, or `SE` letter monogram.
@@ -91,14 +92,14 @@ Uppercase is reserved for genuinely compact instrument labels. Paragraphs and ac
 
 ### Entry threshold
 
-The public homepage is an **aperture foyer** rather than a compressed experiment screen:
+The public homepage is an **instrument foyer** rather than a compressed experiment screen:
 
 - one wordmark, one premise, one primary action, and one privacy assurance;
-- generous negative space around a single finite phase-aperture signal horizon;
+- generous negative space around a single finite signal horizon;
 - no workflow stepper, device selectors, permission request, calibration plate, metadata ledger, transport, or application footer before entry;
 - `/lab` is the explicit boundary where the working instrument and audio client begin.
 
-Homepage motion draws the finite signal horizon once and then becomes still. The phase-aperture mark is never animated, no sound autoplays, and reduced-motion users receive the settled composition immediately.
+Homepage motion draws the finite signal horizon once and then becomes still. The dual-signal enhancement-gate mark is never animated, no sound autoplays, and reduced-motion users receive the settled composition immediately.
 
 ### Guided-reading protocol
 
