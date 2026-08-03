@@ -2047,9 +2047,17 @@ select {
   stroke: var(--signal-b);
 }
 
-.signal-mark .signal-mark-aperture {
+.signal-mark .signal-mark-input {
+  stroke-width: 2;
+}
+
+.signal-mark .signal-mark-output {
+  stroke-width: 2;
+}
+
+.signal-mark .signal-mark-enhancer {
   stroke: var(--paper-soft);
-  stroke-width: 2.2;
+  stroke-width: 2.6;
 }
 
 .signal-mark[data-compact] {

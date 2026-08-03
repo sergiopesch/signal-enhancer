@@ -47,7 +47,7 @@ No benchmark meaningfully owns **forensic evidence about the input chain**. Hard
 
 This provides three useful brand layers:
 
-- **Brand layer:** editorial restraint and a memorable dual-trace aperture.
+- **Brand layer:** editorial restraint and a memorable dual-signal enhancement gate.
 - **Instrument layer:** exact, durable, and optimized for inspection.
 - **Evidence layer:** readable observations, provenance, qualifications, and an honest processing receipt.
 

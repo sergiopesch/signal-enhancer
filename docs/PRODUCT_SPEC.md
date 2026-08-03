@@ -26,7 +26,7 @@ The product is standalone. It is not a tab or extension of My Audio Visualizer.
 
 ### 0. Entry threshold
 
-The public homepage is a quiet threshold into the experiment, not the experiment itself. It shows one product premise, one primary action, one privacy assurance, and a finite phase-aperture signal horizon. The phase-aperture mark remains static. Workflow navigation, device access, the guided-reading plate, metadata, and the audio client load only after the user enters the instrument at `/lab`.
+The public homepage is a quiet threshold into the experiment, not the experiment itself. It shows one product premise, one primary action, one privacy assurance, and a finite signal horizon. The dual-signal enhancement-gate mark remains static. Workflow navigation, device access, the guided-reading plate, metadata, and the audio client load only after the user enters the instrument at `/lab`.
 
 ### 1. Reading and device setup
 
