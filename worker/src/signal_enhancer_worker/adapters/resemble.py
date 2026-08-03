@@ -2,13 +2,18 @@
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import importlib
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 
-from signal_enhancer_worker.config import DEFAULT_RESEMBLE_SOURCE_REVISION
+from signal_enhancer_worker.config import (
+    DEFAULT_RESEMBLE_CHECKPOINT_SHA256,
+    DEFAULT_RESEMBLE_SOURCE_REVISION,
+)
 from signal_enhancer_worker.errors import EngineError
 from signal_enhancer_worker.wav import FloatSamples
 
@@ -36,14 +41,22 @@ class ResembleEnhanceAdapter:
             return
         if self.source_revision != DEFAULT_RESEMBLE_SOURCE_REVISION:
             raise EngineError("The configured restoration model revision is not approved.")
+        checkpoint_path = (
+            self._run_dir / "ds" / "G" / "default" / "mp_rank_00_model_states.pt"
+        )
         required_files = (
             self._run_dir / "hparams.yaml",
             self._run_dir / "ds" / "G" / "latest",
-            self._run_dir / "ds" / "G" / "default" / "mp_rank_00_model_states.pt",
+            checkpoint_path,
         )
         if not all(path.is_file() for path in required_files):
             # Never let the upstream helper fall back to downloading a floating model revision.
             raise EngineError("The pinned restoration artifacts are not mounted.")
+        if not hmac.compare_digest(
+            _sha256_file(checkpoint_path),
+            DEFAULT_RESEMBLE_CHECKPOINT_SHA256,
+        ):
+            raise EngineError("The pinned restoration checkpoint checksum is invalid.")
         try:
             torch = importlib.import_module("torch")
             inference = importlib.import_module("resemble_enhance.enhancer.inference")
@@ -80,3 +93,11 @@ class ResembleEnhanceAdapter:
         if output.ndim != 1 or output.size == 0 or not np.all(np.isfinite(output)):
             raise EngineError("The deeper restoration pass produced invalid audio.")
         return output, int(output_rate)
+
+
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as checkpoint:
+        while chunk := checkpoint.read(1024 * 1024):
+            digest.update(chunk)
+    return digest.hexdigest()

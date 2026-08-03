@@ -30,23 +30,31 @@ export function ExperimentStepper({
               data-state={state}
               aria-current={state === "current" ? "step" : undefined}
             >
-              <div className="step-track" aria-hidden="true">
-                <span className="step-node">
-                  {index + 1}
+              <div className="step-track">
+                <span className="step-node" aria-hidden="true">
+                  <span className="step-number">
+                    {String(index + 1).padStart(2, "0")}
+                  </span>
                   {state === "complete" ? (
                     <Check className="step-check" size={11} strokeWidth={2} />
                   ) : null}
                 </span>
+                <span
+                  className="step-label"
+                  data-short={
+                    step === "Reference"
+                      ? "Ref"
+                      : step === "Upgrade"
+                        ? "Up"
+                        : step.replace("Input ", "")
+                  }
+                >
+                  {step}
+                </span>
                 {index < EXPERIMENT_STEPS.length - 1 ? (
-                  <span className="step-line" />
+                  <span className="step-line" aria-hidden="true" />
                 ) : null}
               </div>
-              <span
-                className="step-label"
-                data-short={step.replace("Input ", "")}
-              >
-                {step}
-              </span>
             </li>
           );
         })}

@@ -20,6 +20,13 @@ test("prepared comparison completes the honest browser-only journey", async ({
     page.getByRole("heading", { name: "Listen to the chain." }),
   ).toBeVisible();
   await expectNoHorizontalOverflow(page);
+  if (testInfo.project.name === "mobile") {
+    const aboutTarget = await page
+      .getByRole("button", { name: "About Signal Enhancer" })
+      .boundingBox();
+    expect(aboutTarget?.width).toBeGreaterThanOrEqual(44);
+    expect(aboutTarget?.height).toBeGreaterThanOrEqual(44);
+  }
   await expect(
     page.getByText("stays on this device until you upgrade"),
   ).toBeVisible();
@@ -68,6 +75,10 @@ test("prepared comparison completes the honest browser-only journey", async ({
   await expect(
     page.getByRole("img", { name: /Absolute waveform comparison/ }),
   ).toBeVisible();
+  await expect(
+    page.locator(".signal-plot:visible .plot-ruler text").last(),
+  ).toHaveText("0:20");
+  await expect(page.getByText("20:00", { exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "Loudness matched" }).click();
   await page.getByRole("tab", { name: "Spectrum" }).click();
   await expect(
@@ -112,6 +123,8 @@ test("prepared comparison completes the honest browser-only journey", async ({
       .locator('.upgrade-stage-rail li[data-state="active"]')
       .filter({ hasText: "Restoring detail" }),
   ).toBeVisible({ timeout: 5_000 });
+  await expect(page.getByRole("status")).toHaveAttribute("aria-live", "polite");
+  await expect(page.getByRole("status")).toContainText("Restoring detail");
 
   await expect(
     page.getByRole("heading", { name: "A local preview, made visible." }),

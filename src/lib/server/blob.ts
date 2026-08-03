@@ -6,6 +6,10 @@ import { getEnvironment, requireLiveEnvironment } from "./env";
 import { SignalError } from "./errors";
 
 export const MAX_CAPTURE_BYTES = 4 * 1024 * 1024;
+export const ARTIFACT_WRITE_DRAIN_MS = 15 * 60 * 1000;
+const CAPTURE_GRANT_MS = 10 * 60 * 1000;
+const RESULT_GRANT_MS = 5 * 60 * 1000;
+const MIN_GRANT_MS = 30 * 1000;
 const WAV_TYPES = ["audio/wav", "audio/wave", "audio/x-wav"];
 
 function credentialOptions() {
@@ -47,12 +51,45 @@ async function issue(
   });
 }
 
-export function capturePathname(sessionPublicId: string, slot: "A" | "B") {
-  return `sessions/${sessionPublicId}/captures/${slot}-${crypto.randomUUID()}.wav`;
+export function capturePathname(
+  sessionPublicId: string,
+  slot: "A" | "B",
+  attempt: 1 | 2,
+) {
+  return `sessions/${sessionPublicId}/captures/${slot}-${attempt}.wav`;
 }
 
-export async function createCapturePutUrl(pathname: string) {
-  const validUntil = Date.now() + 10 * 60 * 1000;
+function boundedValidUntil(expiresAt: Date, maximumLifetimeMs: number) {
+  const validUntil = Math.min(
+    Date.now() + maximumLifetimeMs,
+    expiresAt.getTime(),
+  );
+  if (validUntil - Date.now() < MIN_GRANT_MS)
+    throw new SignalError(
+      "session_expiring",
+      "This experiment is too close to expiry to issue another storage grant.",
+      409,
+    );
+  return validUntil;
+}
+
+export function captureGrantValidUntil(sessionExpiresAt: Date) {
+  return boundedValidUntil(sessionExpiresAt, CAPTURE_GRANT_MS);
+}
+
+export async function createCapturePutUrl(
+  pathname: string,
+  validUntil: number,
+) {
+  if (
+    validUntil - Date.now() < MIN_GRANT_MS ||
+    validUntil > Date.now() + CAPTURE_GRANT_MS
+  )
+    throw new SignalError(
+      "invalid_grant_expiry",
+      "The private upload grant had an invalid expiry.",
+      500,
+    );
   const token = await issue(pathname, ["put"], validUntil, {
     contentTypes: WAV_TYPES,
     maximumSizeInBytes: MAX_CAPTURE_BYTES,
@@ -74,8 +111,11 @@ export async function createCapturePutUrl(pathname: string) {
 export async function createPrivateReadUrl(
   pathname: string,
   operation: "get" | "head" = "get",
+  expiresAt?: Date,
 ) {
-  const validUntil = Date.now() + 5 * 60 * 1000;
+  const validUntil = expiresAt
+    ? boundedValidUntil(expiresAt, RESULT_GRANT_MS)
+    : Date.now() + RESULT_GRANT_MS;
   const token = await issue(pathname, [operation], validUntil);
   const { presignedUrl } = await presignUrl(token, {
     access: "private",
@@ -90,8 +130,9 @@ export async function createPrivateReadUrl(
 export async function createResultPutUrl(
   pathname: string,
   contentType: "audio/wav" | "application/json",
+  jobExpiresAt: Date,
 ) {
-  const validUntil = Date.now() + 5 * 60 * 1000;
+  const validUntil = boundedValidUntil(jobExpiresAt, RESULT_GRANT_MS);
   const token = await issue(pathname, ["put"], validUntil, {
     contentTypes: [contentType],
     maximumSizeInBytes: MAX_CAPTURE_BYTES,

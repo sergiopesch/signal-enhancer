@@ -66,6 +66,7 @@ export async function POST(request: NextRequest) {
       session.id,
       identity.sessionHash,
       hashNetwork(request),
+      session.expiresAt,
     );
     const run = await start(upgradeSignalWorkflow, [job.id]);
     await attachWorkflowRun(job.id, run.runId);

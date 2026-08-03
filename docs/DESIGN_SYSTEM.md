@@ -1,4 +1,6 @@
-# Signal Enhancer — Design System
+# Signal Enhancer — Design System (v1, superseded)
+
+> The current identity and interface specification is [Brand System v2](brand-redesign/BRAND_SYSTEM_V2.md). This document is retained as a record of the original acoustic-observatory direction.
 
 ## Accepted concept set
 

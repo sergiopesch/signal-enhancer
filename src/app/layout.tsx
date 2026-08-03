@@ -1,18 +1,25 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { IBM_Plex_Mono, Instrument_Sans, Newsreader } from "next/font/google";
 import type { ReactNode } from "react";
 
 import "./globals.css";
 
-const geist = Geist({
+const instrumentSans = Instrument_Sans({
   subsets: ["latin"],
-  variable: "--font-geist",
+  variable: "--font-instrument-sans",
   display: "swap",
 });
 
-const geistMono = Geist_Mono({
+const editorial = Newsreader({
   subsets: ["latin"],
-  variable: "--font-geist-mono",
+  variable: "--font-editorial",
+  display: "swap",
+});
+
+const measure = IBM_Plex_Mono({
+  subsets: ["latin"],
+  variable: "--font-measure-face",
+  weight: ["400", "500"],
   display: "swap",
 });
 
@@ -39,7 +46,7 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   colorScheme: "dark",
-  themeColor: "#050b0f",
+  themeColor: "#0b0b0a",
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
@@ -49,7 +56,10 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: ReactNode }>) {
   return (
-    <html lang="en" className={`${geist.variable} ${geistMono.variable}`}>
+    <html
+      lang="en"
+      className={`${instrumentSans.variable} ${editorial.variable} ${measure.variable}`}
+    >
       <body>{children}</body>
     </html>
   );

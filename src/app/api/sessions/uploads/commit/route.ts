@@ -1,13 +1,17 @@
 import type { NextRequest } from "next/server";
 
-import { verifyCommittedBlob } from "@/lib/server/blob";
+import { capturePathname, verifyCommittedBlob } from "@/lib/server/blob";
 import { commitCaptureSchema } from "@/lib/server/contracts";
 import {
   assertSameOrigin,
   safeErrorResponse,
   SignalError,
 } from "@/lib/server/errors";
-import { commitCapture, requireOwnedSession } from "@/lib/server/repository";
+import {
+  claimCaptureVerification,
+  commitCapture,
+  requireOwnedSession,
+} from "@/lib/server/repository";
 import { readSessionToken } from "@/lib/server/session";
 
 export const dynamic = "force-dynamic";
@@ -33,19 +37,35 @@ export async function POST(request: NextRequest) {
       identity.publicId,
       identity.sessionHash,
     );
-    if (
-      !input.pathname.startsWith(
-        `sessions/${identity.publicId}/captures/${input.slot}-`,
-      )
-    ) {
+    const allowedPathnames = [
+      capturePathname(identity.publicId, input.slot, 1),
+      capturePathname(identity.publicId, input.slot, 2),
+    ];
+    if (!allowedPathnames.includes(input.pathname)) {
       throw new SignalError(
         "invalid_capture_path",
         "The capture path was outside this session.",
         403,
       );
     }
+    const verification = await claimCaptureVerification(
+      session.id,
+      input.slot,
+      input.pathname,
+      input.bytes,
+      input.sha256,
+    );
+    if (verification.status === "committed")
+      return Response.json(
+        {
+          captureId: verification.captureId,
+          slot: input.slot,
+          committed: true,
+        },
+        { headers: { "Cache-Control": "no-store" } },
+      );
     await verifyCommittedBlob(input.pathname, input.bytes);
-    const capture = await commitCapture(session.id, input);
+    const capture = await commitCapture(session.id, session.expiresAt, input);
     return Response.json(
       { captureId: capture.id, slot: capture.slot, committed: true },
       { headers: { "Cache-Control": "no-store" } },

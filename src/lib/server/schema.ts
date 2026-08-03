@@ -77,6 +77,31 @@ export const captures = pgTable(
   ],
 );
 
+export const captureUploadGrants = pgTable(
+  "capture_upload_grants",
+  {
+    sessionId: uuid("session_id")
+      .notNull()
+      .references(() => experimentSessions.id, { onDelete: "cascade" }),
+    slot: text("slot").notNull(),
+    attempt: integer("attempt").notNull(),
+    pathname: text("pathname").notNull(),
+    expectedBytes: integer("expected_bytes").notNull(),
+    expectedSha256: text("expected_sha256").notNull(),
+    authorizationCount: integer("authorization_count").notNull().default(1),
+    verificationCount: integer("verification_count").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.sessionId, table.slot, table.attempt] }),
+    uniqueIndex("capture_upload_grants_pathname_idx").on(table.pathname),
+    index("capture_upload_grants_expiry_idx").on(table.expiresAt),
+  ],
+);
+
 export const upgradeJobs = pgTable(
   "upgrade_jobs",
   {
@@ -166,4 +191,5 @@ export const usageLedger = pgTable(
 
 export type ExperimentSession = typeof experimentSessions.$inferSelect;
 export type Capture = typeof captures.$inferSelect;
+export type CaptureUploadGrant = typeof captureUploadGrants.$inferSelect;
 export type UpgradeJob = typeof upgradeJobs.$inferSelect;

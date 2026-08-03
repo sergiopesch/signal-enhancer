@@ -11,7 +11,7 @@ requires-python = ">=3.11,<3.13"
 license = { text = "Proprietary" }
 dependencies = [
   "anyio>=4.9,<5",
-  "fastapi>=0.115.12,<0.117",
+  "fastapi>=0.141.1,<0.142",
   "httpx>=0.28.1,<0.29",
   "numpy>=1.26.4,<2",
   "pydantic>=2.11.3,<3",
@@ -21,25 +21,29 @@ dependencies = [
 [project.optional-dependencies]
 # This exact source revision is deliberate. The model is imported lazily at runtime.
 resemble = [
-  "deepspeed>=0.15.4,<0.16",
-  "gradio>=4.44.1,<5",
+  "deepspeed>=0.19.3,<0.20",
+  "gradio>=6.22,<7",
   "librosa>=0.10.2.post1,<0.11",
   "llvmlite>=0.43,<0.44",
   "numba>=0.60,<0.61",
   "omegaconf>=2.3,<2.4",
+  "pillow>=12.3,<13",
   "resemble-enhance @ git+https://github.com/resemble-ai/resemble-enhance.git@8e978149bfe8abab3eb77d965d579a111afdb0ff",
   "rich>=13.7,<14",
   "scipy>=1.13.1,<1.15",
   "soundfile>=0.12.1,<0.14",
-  "torch>=2.4.1,<2.5",
-  "torchaudio>=2.4.1,<2.5",
-  "torchvision>=0.19.1,<0.20",
+  "torch>=2.13,<2.14",
+  # TorchAudio is maintenance-only; 2.11 is its newest release and its inference APIs are
+  # runtime-tested against the Torch 2.13 line above.
+  "torchaudio>=2.11,<2.12",
+  "torchvision>=0.28,<0.29",
   "tqdm>=4.66,<5",
 ]
 dev = [
+  "httpx2>=2.9.1,<3",
   "mypy>=1.15,<2",
-  "pytest>=8.3.5,<9",
-  "pytest-asyncio>=0.26,<1",
+  "pytest>=9.1.1,<10",
+  "pytest-asyncio>=1.4,<2",
   "ruff>=0.11.7,<0.13",
 ]
 

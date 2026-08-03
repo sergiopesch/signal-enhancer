@@ -23,11 +23,11 @@ type SignalPlotProps = {
 };
 
 const SEGMENTS = [
-  { label: "Silence", range: "0:00 – 2:00", start: 0, end: 0.1 },
-  { label: "Sweep", range: "2:00 – 6:00", start: 0.1, end: 0.3 },
-  { label: "Clicks", range: "6:00 – 10:00", start: 0.3, end: 0.5 },
-  { label: "Quiet probe", range: "10:00 – 15:00", start: 0.5, end: 0.75 },
-  { label: "Loud probe", range: "15:00 – 20:00", start: 0.75, end: 1 },
+  { label: "Silence", range: "0:00 – 0:02", start: 0, end: 0.1 },
+  { label: "Sweep", range: "0:02 – 0:06", start: 0.1, end: 0.3 },
+  { label: "Clicks", range: "0:06 – 0:10", start: 0.3, end: 0.5 },
+  { label: "Quiet probe", range: "0:10 – 0:15", start: 0.5, end: 0.75 },
+  { label: "Loud probe", range: "0:15 – 0:20", start: 0.75, end: 1 },
 ] as const;
 
 function seededNoise(index: number, seed: number) {
@@ -135,6 +135,7 @@ export function SignalPlot({
   ariaLabel,
 }: Readonly<SignalPlotProps>) {
   const titleId = useId();
+  const mobileTitleId = useId();
   const width = 1000;
   const headerHeight = showSegments ? 82 : 34;
   const trackHeight = compact
@@ -165,30 +166,57 @@ export function SignalPlot({
     [headerHeight, trackHeight, tracks, view],
   );
 
+  const mobileWidth = 500;
+  const mobilePlotOffset = 96;
+  const mobileTraceWidth = mobileWidth - mobilePlotOffset - 12;
+  const mobileHeaderHeight = showSegments ? 70 : 28;
+  const mobileTrackHeight = compact ? 110 : tracks.length > 1 ? 132 : 196;
+  const mobileFooterHeight = 42;
+  const mobileHeight =
+    mobileHeaderHeight + mobileTrackHeight * tracks.length + mobileFooterHeight;
+  const mobilePaths = useMemo(
+    () =>
+      tracks.map((track, index) => {
+        const values = normalizeSamples(
+          view === "spectrum" && track.spectrum
+            ? track.spectrum
+            : (track.samples ?? makeReferenceEnvelope(420, index)),
+          420,
+        );
+        const baseline =
+          mobileHeaderHeight +
+          mobileTrackHeight * index +
+          mobileTrackHeight / 2;
+        const path =
+          view === "spectrum"
+            ? spectrumPath(
+                values,
+                mobileTraceWidth,
+                baseline + mobileTrackHeight * 0.28,
+                mobileTrackHeight * 0.62,
+              )
+            : waveformPath(
+                values,
+                mobileTraceWidth,
+                baseline,
+                mobileTrackHeight * 0.39,
+              );
+        return { ...track, path, baseline };
+      }),
+    [mobileHeaderHeight, mobileTraceWidth, mobileTrackHeight, tracks, view],
+  );
+
   return (
     <figure className="signal-figure" data-compact={compact || undefined}>
       <svg
-        className="signal-plot"
+        className="signal-plot signal-plot-desktop"
         viewBox={`0 0 ${width} ${height}`}
         role="img"
         aria-labelledby={titleId}
-        preserveAspectRatio="none"
+        preserveAspectRatio="xMidYMid meet"
+        style={{ aspectRatio: `${width} / ${height}` }}
       >
         <title id={titleId}>{ariaLabel}</title>
-        <defs>
-          <linearGradient id="plotFade" x1="0" x2="1">
-            <stop offset="0" stopColor="currentColor" stopOpacity="0.58" />
-            <stop offset="0.5" stopColor="currentColor" stopOpacity="1" />
-            <stop offset="1" stopColor="currentColor" stopOpacity="0.72" />
-          </linearGradient>
-          <filter id="traceSoft" x="-10%" y="-30%" width="120%" height="160%">
-            <feGaussianBlur stdDeviation="0.7" result="blur" />
-            <feMerge>
-              <feMergeNode in="blur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
-        </defs>
 
         {showSegments
           ? SEGMENTS.map((segment, index) => (
@@ -226,11 +254,7 @@ export function SignalPlot({
             <text x="8" y={track.baseline - trackHeight * 0.29}>
               {track.label}
             </text>
-            <path
-              d={track.path}
-              vectorEffect="non-scaling-stroke"
-              filter="url(#traceSoft)"
-            />
+            <path d={track.path} vectorEffect="non-scaling-stroke" />
           </g>
         ))}
 
@@ -276,7 +300,120 @@ export function SignalPlot({
                   tick === 0 ? "start" : tick === 1 ? "end" : "middle"
                 }
               >
-                {Math.round(tick * 20)}:00
+                0:
+                {Math.round(tick * 20)
+                  .toString()
+                  .padStart(2, "0")}
+              </text>
+            </g>
+          ))}
+        </g>
+      </svg>
+      <svg
+        className="signal-plot signal-plot-mobile"
+        viewBox={`0 0 ${mobileWidth} ${mobileHeight}`}
+        role="img"
+        aria-labelledby={mobileTitleId}
+        preserveAspectRatio="xMidYMid meet"
+        style={{ aspectRatio: `${mobileWidth} / ${mobileHeight}` }}
+      >
+        <title id={mobileTitleId}>{ariaLabel}</title>
+
+        {showSegments
+          ? SEGMENTS.map((segment, index) => {
+              const center =
+                mobilePlotOffset +
+                ((segment.start + segment.end) / 2) * mobileTraceWidth;
+              const start = mobilePlotOffset + segment.start * mobileTraceWidth;
+              return (
+                <g key={segment.label} className="plot-segment">
+                  {index > 0 ? (
+                    <line
+                      x1={start}
+                      x2={start}
+                      y1={36}
+                      y2={mobileHeight - mobileFooterHeight}
+                    />
+                  ) : null}
+                  <text x={center} y={23} textAnchor="middle">
+                    {segment.label.replace(" probe", "")}
+                  </text>
+                </g>
+              );
+            })
+          : null}
+
+        {mobilePaths.map((track) => (
+          <g key={track.id} className="plot-track" data-color={track.color}>
+            <line
+              x1={mobilePlotOffset}
+              x2={mobilePlotOffset + mobileTraceWidth}
+              y1={track.baseline}
+              y2={track.baseline}
+            />
+            <text x="8" y={track.baseline - mobileTrackHeight * 0.22}>
+              {track.label}
+            </text>
+            <path
+              d={track.path}
+              transform={`translate(${mobilePlotOffset} 0)`}
+              vectorEffect="non-scaling-stroke"
+            />
+          </g>
+        ))}
+
+        {activeGate !== null ? (
+          <g
+            className="active-gate"
+            transform={`translate(${mobilePlotOffset + Math.max(0, Math.min(1, activeGate)) * mobileTraceWidth} 0)`}
+          >
+            <line
+              y1={mobileHeaderHeight - 8}
+              y2={mobileHeight - mobileFooterHeight}
+            />
+            <circle cy={mobileHeaderHeight - 8} r="5" />
+          </g>
+        ) : null}
+
+        {playhead > 0 ? (
+          <g
+            className="playhead"
+            transform={`translate(${mobilePlotOffset + Math.max(0, Math.min(1, playhead)) * mobileTraceWidth} 0)`}
+          >
+            <line
+              y1={mobileHeaderHeight - 8}
+              y2={mobileHeight - mobileFooterHeight}
+            />
+            <path d={`M-6 ${mobileHeaderHeight - 12}h12l-6 8z`} />
+          </g>
+        ) : null}
+
+        <g className="plot-ruler">
+          <line
+            x1={mobilePlotOffset}
+            x2={mobilePlotOffset + mobileTraceWidth}
+            y1={mobileHeight - mobileFooterHeight + 6}
+            y2={mobileHeight - mobileFooterHeight + 6}
+          />
+          {[0, 0.5, 1].map((tick) => (
+            <g key={tick}>
+              <line
+                x1={mobilePlotOffset + tick * mobileTraceWidth}
+                x2={mobilePlotOffset + tick * mobileTraceWidth}
+                y1={mobileHeight - mobileFooterHeight + 6}
+                y2={mobileHeight - mobileFooterHeight + 14}
+              />
+              <text
+                x={mobilePlotOffset + tick * mobileTraceWidth}
+                y={mobileHeight - 9}
+                textAnchor={
+                  tick === 0 ? "start" : tick === 1 ? "end" : "middle"
+                }
+              >
+                0:
+                {Math.round(tick * 20)
+                  .toString()
+                  .padStart(2, "0")}
               </text>
             </g>
           ))}

@@ -26,6 +26,12 @@ export const uploadAuthorizationSchema = z
   .object({
     sessionId: z.string().uuid(),
     slot: z.enum(["A", "B"]),
+    bytes: z
+      .number()
+      .int()
+      .min(44)
+      .max(4 * 1024 * 1024),
+    sha256: z.string().regex(/^[a-f0-9]{64}$/),
   })
   .strict();
 
@@ -35,7 +41,7 @@ export const commitCaptureSchema = z
     slot: z.enum(["A", "B"]),
     pathname: z
       .string()
-      .regex(/^sessions\/[0-9a-f-]+\/captures\/[AB]-[0-9a-f-]+\.wav$/),
+      .regex(/^sessions\/[0-9a-f-]+\/captures\/[AB]-[12]\.wav$/),
     bytes: z
       .number()
       .int()

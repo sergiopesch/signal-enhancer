@@ -6,7 +6,7 @@ Please report a suspected vulnerability through a private GitHub security adviso
 
 ## Supported version
 
-The current `main` branch is the only supported line during the private beta.
+The current `main` branch is the only supported line during the public preview.
 
 ## Trust boundaries
 
@@ -22,11 +22,11 @@ Production secrets belong in Vercel and Hugging Face environment settings. Never
 
 ## Data lifetime
 
-Live captures and derived artifacts are private and expire after 24 hours. The cleanup route requires `CRON_SECRET`, deletes known Blob objects first, then cascades expired database records. Live launch requires that route to be called at least hourly; the committed Hobby-compatible demo schedule is daily because demo mode stores no server-side audio. Hashed abuse-control ledger rows are retained for 35 days.
+Live capture and result access expires with the 24-hour session. The cleanup route requires `CRON_SECRET`, repeatedly deletes every bounded or persisted Blob path after expiry, retains discovery rows through a 15-minute write-drain window, and only then cascades expired database records. Live launch requires that route to be called at least hourly; the committed Hobby-compatible demo schedule is daily because demo mode stores no server-side audio. Hashed abuse-control ledger rows are retained for 35 days.
 
 ## Deployment controls
 
 - Keep the worker image and model revision immutable.
-- Keep the beta endpoint at maximum one replica and enforce application job caps.
+- Keep the preview endpoint at maximum one replica and enforce application job caps.
 - Exercise WAF/rate-limit changes in preview and log-only mode before enforcement.
 - Do not enable `SIGNAL_MODE=live` until Neon, private Blob, cleanup authentication, the protected worker, and all required secrets are healthy.

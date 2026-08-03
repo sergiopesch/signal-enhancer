@@ -8,11 +8,15 @@ import {
   FileText,
   Info,
   PlusCircle,
-  Sparkles,
+  SlidersHorizontal,
   Waves,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 
+import {
+  InstrumentMetadata,
+  InstrumentRegistration,
+} from "./instrument-chrome";
 import { SignalMark } from "./signal-mark";
 import { SignalPlot, type PlotTrack, type PlotView } from "./signal-plot";
 import { Transport } from "./transport";
@@ -168,6 +172,7 @@ function UpgradeProgress({
       </aside>
 
       <div className="upgrade-progress-instrument">
+        <InstrumentRegistration />
         <div className="progress-legend">
           <span>
             <i data-color="cyan" />
@@ -221,8 +226,36 @@ function UpgradeProgress({
           activeGate={(currentIndex + 0.5) / STAGES.length}
           ariaLabel={`Upgrade processing visualization. Current stage: ${currentStage}`}
         />
-        <div className="active-stage-note">
-          <Sparkles size={20} />
+        <InstrumentMetadata
+          label="Upgrade route evidence"
+          items={[
+            { label: "Source", value: "Input A" },
+            {
+              label: "Duration",
+              value: `${(source.samples.length / source.sampleRate).toFixed(
+                1,
+              )} s`,
+            },
+            {
+              label: "Sample rate",
+              value: `${source.sampleRate / 1_000} kHz`,
+            },
+            {
+              label: "Route",
+              value:
+                mode === "live"
+                  ? "Protected worker · receipt on completion"
+                  : "Local DSP · browser-v1",
+            },
+          ]}
+        />
+        <div
+          className="active-stage-note"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          <SlidersHorizontal size={20} />
           <div>
             <strong>{currentStage}</strong>
             <span>
@@ -308,7 +341,7 @@ function UpgradeResult({
           </h1>
           <p>
             {mode === "live"
-              ? "A measured restoration pass inferred detail and gently controlled dynamics."
+              ? "The protected worker returned a result for direct comparison; its exact routing and versions remain in the backend receipt."
               : "Fixed filters and restrained dynamics shaped this browser-only preview; no AI model was used."}
           </p>
           <span>Enhanced from Input A · {source.deviceLabel}</span>
@@ -329,11 +362,33 @@ function UpgradeResult({
 
       <div className="result-layout">
         <div className="result-instrument">
+          <InstrumentRegistration />
           <SignalPlot
             tracks={tracks}
             view={view === "difference" ? "waveform" : view}
             playhead={currentTime / 20}
             ariaLabel={`${view} comparison of the original Input A and ${mode === "live" ? "enhanced" : "local preview"} signal`}
+          />
+          <InstrumentMetadata
+            label="Result evidence"
+            items={[
+              { label: "Source", value: "Input A" },
+              {
+                label: "Duration",
+                value: `${(source.samples.length / source.sampleRate).toFixed(
+                  1,
+                )} s`,
+              },
+              {
+                label: "Sample rate",
+                value: `${source.sampleRate / 1_000} kHz`,
+              },
+              { label: "Comparison", value: "Loudness matched" },
+              {
+                label: "Pipeline",
+                value: mode === "live" ? "Backend receipt" : "browser-v1",
+              },
+            ]}
           />
           <Transport
             playing={playing}
@@ -351,19 +406,19 @@ function UpgradeResult({
               <ul>
                 <li>
                   <Activity size={19} />
-                  Steady background energy reduced
+                  Protected worker route completed
                 </li>
                 <li>
                   <Waves size={19} />
-                  Upper-range detail inferred above the original roll-off
+                  Enhanced WAV receipt validated
                 </li>
                 <li>
-                  <Sparkles size={19} />
-                  Peaks gently controlled
+                  <SlidersHorizontal size={19} />
+                  Output path matched this processing attempt
                 </li>
                 <li>
                   <FileText size={19} />
-                  Output loudness matched for a fair comparison
+                  Exact routing and versions recorded server-side
                 </li>
               </ul>
             ) : (
@@ -377,7 +432,7 @@ function UpgradeResult({
                   Broad tonal balance adjusted
                 </li>
                 <li>
-                  <Sparkles size={19} />
+                  <SlidersHorizontal size={19} />
                   Peaks gently controlled
                 </li>
                 <li>
@@ -406,17 +461,17 @@ function UpgradeResult({
                   <dt>Restoration route</dt>
                   <dd>
                     {mode === "live"
-                      ? "Detail + dynamics"
+                      ? "Backend-reported receipt"
                       : "Local DSP preview"}
                   </dd>
                 </div>
                 <div>
                   <dt>DSP finish</dt>
-                  <dd>Transparency mode</dd>
+                  <dd>{mode === "live" ? "Recorded" : "Transparency mode"}</dd>
                 </div>
                 <div>
                   <dt>Pipeline version</dt>
-                  <dd>{mode === "live" ? "v1.0.0" : "browser-v1"}</dd>
+                  <dd>{mode === "live" ? "Backend receipt" : "browser-v1"}</dd>
                 </div>
               </dl>
             </div>
@@ -439,7 +494,9 @@ function UpgradeResult({
           </button>
           <p className="privacy-note">
             <Info size={16} />
-            Session audio expires automatically after 24 hours.
+            {mode === "live"
+              ? "Cloud access expires after 24 hours."
+              : "Audio stays in this tab and is released when you reset or close it."}
           </p>
         </aside>
       </div>

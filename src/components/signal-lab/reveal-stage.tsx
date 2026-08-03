@@ -3,6 +3,10 @@
 import { ArrowRight, Info, Mic, Play, RotateCcw } from "lucide-react";
 import { useMemo, useState } from "react";
 
+import {
+  InstrumentMetadata,
+  InstrumentRegistration,
+} from "./instrument-chrome";
 import { ModeSwitch, ViewTabs } from "./view-switches";
 import { SignalPlot, type PlotTrack, type PlotView } from "./signal-plot";
 import { Transport } from "./transport";
@@ -14,6 +18,7 @@ type RevealStageProps = {
   observations: readonly Observation[];
   playing: boolean;
   currentTime: number;
+  signalMode: "demo" | "live";
   onPlay: (mode: "A" | "B" | "both") => void;
   onSeek: (time: number) => void;
   onRepeat: () => void;
@@ -66,6 +71,7 @@ export function RevealStage({
   observations,
   playing,
   currentTime,
+  signalMode,
   onPlay,
   onSeek,
   onRepeat,
@@ -195,12 +201,15 @@ export function RevealStage({
             </button>
             <p className="privacy-note">
               <Info size={16} />
-              Session audio expires after 24 hours.
+              {signalMode === "live"
+                ? "Cloud access expires after 24 hours."
+                : "Audio stays in this tab and is released when you reset or close it."}
             </p>
           </div>
         </aside>
 
         <div className="comparison-instrument">
+          <InstrumentRegistration />
           <div className="plot-legend" aria-label="Signal legend">
             <span>
               <i data-color="cyan" />
@@ -220,6 +229,26 @@ export function RevealStage({
             view={view === "difference" ? "waveform" : view}
             playhead={currentTime / 20}
             ariaLabel={`${mode === "absolute" ? "Absolute" : "Loudness-matched"} ${view} comparison of Input A, Input B, and their difference`}
+          />
+          <InstrumentMetadata
+            label="Comparison evidence"
+            items={[
+              { label: "Reference", value: "diagnostic-speech-v1" },
+              {
+                label: "Duration",
+                value: `${(
+                  captureA.samples.length / captureA.sampleRate
+                ).toFixed(1)} s`,
+              },
+              {
+                label: "Sample rate",
+                value: `${captureA.sampleRate / 1_000} kHz`,
+              },
+              {
+                label: "View",
+                value: mode === "absolute" ? "Absolute" : "Loudness matched",
+              },
+            ]}
           />
           <Transport
             playing={playing}
@@ -273,6 +302,12 @@ export function RevealStage({
           <RotateCcw size={18} />
           Repeat captures
         </button>
+        <p className="privacy-note">
+          <Info size={16} />
+          {signalMode === "live"
+            ? "Cloud access expires after 24 hours."
+            : "Audio stays in this tab and is released when you reset or close it."}
+        </p>
       </div>
     </section>
   );

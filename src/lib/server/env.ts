@@ -2,7 +2,14 @@ import "server-only";
 
 import { z } from "zod";
 
-const optionalSecret = z.string().trim().min(1).optional();
+const blankToUndefined = (value: unknown) =>
+  typeof value === "string" && value.trim() === "" ? undefined : value;
+
+const optionalSecret = z.preprocess(
+  blankToUndefined,
+  z.string().trim().min(1).optional(),
+);
+const optionalUrl = z.preprocess(blankToUndefined, z.string().url().optional());
 
 const environmentSchema = z.object({
   SIGNAL_MODE: z.enum(["demo", "live"]).default("demo"),
@@ -12,7 +19,7 @@ const environmentSchema = z.object({
   BLOB_READ_WRITE_TOKEN: optionalSecret,
   BLOB_STORE_ID: optionalSecret,
   CRON_SECRET: optionalSecret,
-  HF_ENDPOINT_URL: z.string().url().optional(),
+  HF_ENDPOINT_URL: optionalUrl,
   HF_ENDPOINT_TOKEN: optionalSecret,
   HF_ENDPOINT_SHARED_SECRET: optionalSecret,
   MAX_GLOBAL_JOBS_PER_DAY: z.coerce.number().int().positive().default(100),
@@ -25,8 +32,14 @@ export type SignalEnvironment = z.infer<typeof environmentSchema>;
 let memoizedEnvironment: SignalEnvironment | undefined;
 
 export function getEnvironment(): SignalEnvironment {
-  memoizedEnvironment ??= environmentSchema.parse(process.env);
+  memoizedEnvironment ??= parseEnvironment(process.env);
   return memoizedEnvironment;
+}
+
+export function parseEnvironment(
+  values: Record<string, string | undefined>,
+): SignalEnvironment {
+  return environmentSchema.parse(values);
 }
 
 export function requireLiveEnvironment() {

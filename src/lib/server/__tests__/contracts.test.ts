@@ -99,7 +99,7 @@ describe("web boundary contracts", () => {
       commitCaptureSchema.parse({
         sessionId: JOB_ID,
         slot: "A",
-        pathname: `sessions/${JOB_ID}/captures/A-${ATTEMPT_ID}.wav`,
+        pathname: `sessions/${JOB_ID}/captures/A-1.wav`,
         bytes: 1_920_044,
         sha256: SHA,
         durationMs: 20_000,
@@ -114,12 +114,26 @@ describe("web boundary contracts", () => {
       commitCaptureSchema.parse({
         sessionId: JOB_ID,
         slot: "A",
-        pathname: `sessions/${JOB_ID}/captures/A-${ATTEMPT_ID}.wav`,
+        pathname: `sessions/${JOB_ID}/captures/A-2.wav`,
         bytes: 1_920_044,
         sha256: SHA,
         durationMs: 21_000,
         sampleRate: 48_000,
         channels: 2,
+        metrics: {},
+      }),
+    ).toThrow();
+
+    expect(() =>
+      commitCaptureSchema.parse({
+        sessionId: JOB_ID,
+        slot: "A",
+        pathname: `sessions/${JOB_ID}/captures/A-${ATTEMPT_ID}.wav`,
+        bytes: 1_920_044,
+        sha256: SHA,
+        durationMs: 20_000,
+        sampleRate: 48_000,
+        channels: 1,
         metrics: {},
       }),
     ).toThrow();
