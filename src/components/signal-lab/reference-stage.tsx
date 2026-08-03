@@ -1,6 +1,10 @@
 import { ArrowRight, Info, Mic, Play } from "lucide-react";
 
 import { DeviceSelector } from "./device-selector";
+import {
+  InstrumentMetadata,
+  InstrumentRegistration,
+} from "./instrument-chrome";
 import { makeReferenceEnvelope, SignalPlot } from "./signal-plot";
 import { Transport } from "./transport";
 import type { DeviceChoice } from "./types";
@@ -115,6 +119,7 @@ export function ReferenceStage({
       </div>
 
       <div className="reference-instrument">
+        <InstrumentRegistration />
         <div className="instrument-heading">
           <div>
             <p className="instrument-label">Reference sound</p>
@@ -149,6 +154,15 @@ export function ReferenceStage({
           ]}
           playhead={currentTime / 20}
           ariaLabel="Twenty second reference waveform: silence, sweep, clicks, quiet probe, then loud probe"
+        />
+        <InstrumentMetadata
+          label="Reference evidence"
+          items={[
+            { label: "Reference", value: "diagnostic-speech-v1" },
+            { label: "Duration", value: "20.0 s" },
+            { label: "Sample rate", value: "48 kHz" },
+            { label: "Channels", value: "Mono" },
+          ]}
         />
         <Transport
           playing={playing}

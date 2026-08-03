@@ -1,4 +1,6 @@
-# Signal Enhancer fidelity ledger
+# Signal Enhancer fidelity ledger (v1, superseded)
+
+> The current implementation review is [Brand Redesign Fidelity Ledger](brand-redesign/FIDELITY_LEDGER.md). This document is retained as the record for the original concept set.
 
 This ledger records the implementation review against the accepted visual concepts. It exists to keep design fidelity, product honesty, and responsive behavior independently auditable.
 

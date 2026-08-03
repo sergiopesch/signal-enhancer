@@ -8,11 +8,15 @@ import {
   FileText,
   Info,
   PlusCircle,
-  Sparkles,
+  SlidersHorizontal,
   Waves,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 
+import {
+  InstrumentMetadata,
+  InstrumentRegistration,
+} from "./instrument-chrome";
 import { SignalMark } from "./signal-mark";
 import { SignalPlot, type PlotTrack, type PlotView } from "./signal-plot";
 import { Transport } from "./transport";
@@ -168,6 +172,7 @@ function UpgradeProgress({
       </aside>
 
       <div className="upgrade-progress-instrument">
+        <InstrumentRegistration />
         <div className="progress-legend">
           <span>
             <i data-color="cyan" />
@@ -221,8 +226,36 @@ function UpgradeProgress({
           activeGate={(currentIndex + 0.5) / STAGES.length}
           ariaLabel={`Upgrade processing visualization. Current stage: ${currentStage}`}
         />
-        <div className="active-stage-note">
-          <Sparkles size={20} />
+        <InstrumentMetadata
+          label="Upgrade route evidence"
+          items={[
+            { label: "Source", value: "Input A" },
+            {
+              label: "Duration",
+              value: `${(source.samples.length / source.sampleRate).toFixed(
+                1,
+              )} s`,
+            },
+            {
+              label: "Sample rate",
+              value: `${source.sampleRate / 1_000} kHz`,
+            },
+            {
+              label: "Route",
+              value:
+                mode === "live"
+                  ? "Restoration · v1.0.0"
+                  : "Local DSP · browser-v1",
+            },
+          ]}
+        />
+        <div
+          className="active-stage-note"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          <SlidersHorizontal size={20} />
           <div>
             <strong>{currentStage}</strong>
             <span>
@@ -329,11 +362,33 @@ function UpgradeResult({
 
       <div className="result-layout">
         <div className="result-instrument">
+          <InstrumentRegistration />
           <SignalPlot
             tracks={tracks}
             view={view === "difference" ? "waveform" : view}
             playhead={currentTime / 20}
             ariaLabel={`${view} comparison of the original Input A and ${mode === "live" ? "enhanced" : "local preview"} signal`}
+          />
+          <InstrumentMetadata
+            label="Result evidence"
+            items={[
+              { label: "Source", value: "Input A" },
+              {
+                label: "Duration",
+                value: `${(source.samples.length / source.sampleRate).toFixed(
+                  1,
+                )} s`,
+              },
+              {
+                label: "Sample rate",
+                value: `${source.sampleRate / 1_000} kHz`,
+              },
+              { label: "Comparison", value: "Loudness matched" },
+              {
+                label: "Pipeline",
+                value: mode === "live" ? "v1.0.0" : "browser-v1",
+              },
+            ]}
           />
           <Transport
             playing={playing}
@@ -358,7 +413,7 @@ function UpgradeResult({
                   Upper-range detail inferred above the original roll-off
                 </li>
                 <li>
-                  <Sparkles size={19} />
+                  <SlidersHorizontal size={19} />
                   Peaks gently controlled
                 </li>
                 <li>
@@ -377,7 +432,7 @@ function UpgradeResult({
                   Broad tonal balance adjusted
                 </li>
                 <li>
-                  <Sparkles size={19} />
+                  <SlidersHorizontal size={19} />
                   Peaks gently controlled
                 </li>
                 <li>

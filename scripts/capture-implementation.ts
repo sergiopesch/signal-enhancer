@@ -4,7 +4,10 @@ import { resolve } from "node:path";
 import { chromium, type Page } from "@playwright/test";
 
 const baseUrl = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3000";
-const outputDirectory = resolve(process.cwd(), "docs/implementation");
+const outputDirectory = resolve(
+  process.cwd(),
+  process.env.VISUAL_OUTPUT_DIR ?? "docs/brand-redesign/implementation",
+);
 
 async function waitForStageMotion(page: Page) {
   await page.locator(".stage").evaluate(async (element) => {
@@ -98,6 +101,10 @@ async function captureMobile() {
     await openPreparedReveal(page);
     await page.screenshot({
       path: resolve(outputDirectory, "05-reveal-mobile.png"),
+    });
+    await page.screenshot({
+      path: resolve(outputDirectory, "06-reveal-mobile-full.png"),
+      fullPage: true,
     });
   } finally {
     await browser.close();
