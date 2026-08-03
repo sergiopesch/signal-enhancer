@@ -13,7 +13,7 @@ dependencies = [
   "anyio>=4.9,<5",
   "fastapi>=0.141.1,<0.142",
   "httpx>=0.28.1,<0.29",
-  "numpy>=1.26.4,<2",
+  "numpy>=1.26.4,<3",
   "pydantic>=2.11.3,<3",
   "uvicorn[standard]>=0.34.2,<0.36",
 ]
