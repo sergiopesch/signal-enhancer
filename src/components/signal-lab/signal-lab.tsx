@@ -1,6 +1,7 @@
 "use client";
 
 import { Menu } from "lucide-react";
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
@@ -209,6 +210,39 @@ export function SignalLab() {
   const captureAbortRef = useRef<AbortController | null>(null);
   const activeStreamRef = useRef<MediaStream | null>(null);
   const playbackSelectionRef = useRef<"original" | "enhanced">("enhanced");
+  const enhancedRef = useRef<CaptureRecord | null>(null);
+  const mountedRef = useRef(true);
+  const objectUrlsRef = useRef(new Set<string>());
+
+  const ownRecord = useCallback((record: CaptureRecord) => {
+    if (!mountedRef.current) {
+      URL.revokeObjectURL(record.url);
+      return false;
+    }
+    objectUrlsRef.current.add(record.url);
+    return true;
+  }, []);
+
+  const releaseRecord = useCallback((record: CaptureRecord | null) => {
+    if (record && objectUrlsRef.current.delete(record.url))
+      URL.revokeObjectURL(record.url);
+  }, []);
+
+  const releaseAllRecords = useCallback(() => {
+    for (const url of objectUrlsRef.current) URL.revokeObjectURL(url);
+    objectUrlsRef.current.clear();
+  }, []);
+
+  const replaceEnhanced = useCallback(
+    (record: CaptureRecord) => {
+      releaseRecord(enhancedRef.current);
+      if (!ownRecord(record)) return false;
+      enhancedRef.current = record;
+      setEnhanced(record);
+      return true;
+    },
+    [ownRecord, releaseRecord],
+  );
 
   useEffect(() => {
     appShellRef.current?.setAttribute("data-hydrated", "true");
@@ -294,15 +328,17 @@ export function SignalLab() {
     };
   }, [refreshDevices]);
 
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
       stopPlayback();
       captureAbortRef.current?.abort();
       if (activeStreamRef.current) stopMediaStream(activeStreamRef.current);
+      releaseAllRecords();
       void audioContextRef.current?.close();
-    },
-    [stopPlayback],
-  );
+    };
+  }, [releaseAllRecords, stopPlayback]);
 
   const requestPermission = useCallback(async () => {
     setPermissionState("requesting");
@@ -452,6 +488,7 @@ export function SignalLab() {
           metrics: toMetrics(analysis),
           deviceLabel,
         };
+        if (!ownRecord(record)) return;
         if (slot === "A") {
           setCaptureA(record);
           setStage("Input B");
@@ -470,7 +507,7 @@ export function SignalLab() {
         setRecording(false);
       }
     },
-    [devices, ensureAudioContext, inputA, inputB, stopPlayback],
+    [devices, ensureAudioContext, inputA, inputB, ownRecord, stopPlayback],
   );
 
   const cancelCapture = useCallback(() => {
@@ -683,17 +720,16 @@ export function SignalLab() {
       const resultBlob = await audioResponse.blob();
       const { decodeWav } = await import("@/lib/audio");
       const decoded = await decodeWav(resultBlob);
-      setEnhanced(
-        makeRecord(
-          "A",
-          decoded.samples,
-          decoded.sampleRate,
-          captureA?.deviceLabel ?? "Input A",
-        ),
+      const record = makeRecord(
+        "A",
+        decoded.samples,
+        decoded.sampleRate,
+        captureA?.deviceLabel ?? "Input A",
       );
+      if (!replaceEnhanced(record)) return;
       setUpgradeState("complete");
     },
-    [captureA?.deviceLabel],
+    [captureA?.deviceLabel, replaceEnhanced],
   );
 
   const beginUpgrade = useCallback(async () => {
@@ -705,14 +741,13 @@ export function SignalLab() {
     setUpgradeState("running");
     setUpgradeError(undefined);
     const preview = createDspPreview(captureA.samples, captureA.sampleRate);
-    setEnhanced(
-      makeRecord(
-        "A",
-        preview.samples,
-        preview.sampleRate,
-        captureA.deviceLabel,
-      ),
+    const previewRecord = makeRecord(
+      "A",
+      preview.samples,
+      preview.sampleRate,
+      captureA.deviceLabel,
     );
+    if (!replaceEnhanced(previewRecord)) return;
     if (SIGNAL_MODE === "demo") {
       void runDemoUpgrade();
       return;
@@ -748,6 +783,7 @@ export function SignalLab() {
     consumeUpgradeStream,
     createSession,
     runDemoUpgrade,
+    replaceEnhanced,
     sessionId,
     stopPlayback,
     uploadCapture,
@@ -755,8 +791,8 @@ export function SignalLab() {
 
   const resetExperiment = useCallback(() => {
     stopPlayback();
-    for (const record of [captureA, captureB, enhanced])
-      if (record) URL.revokeObjectURL(record.url);
+    releaseAllRecords();
+    enhancedRef.current = null;
     setCaptureA(null);
     setCaptureB(null);
     setEnhanced(null);
@@ -765,28 +801,38 @@ export function SignalLab() {
     setUpgradeEvents([]);
     setCurrentTime(0);
     setStage("Reference");
-  }, [captureA, captureB, enhanced, stopPlayback]);
+  }, [releaseAllRecords, stopPlayback]);
 
   const repeatCaptures = useCallback(() => {
     stopPlayback();
-    if (captureA) URL.revokeObjectURL(captureA.url);
-    if (captureB) URL.revokeObjectURL(captureB.url);
+    releaseRecord(captureA);
+    releaseRecord(captureB);
+    releaseRecord(enhancedRef.current);
+    enhancedRef.current = null;
     setCaptureA(null);
     setCaptureB(null);
+    setEnhanced(null);
     setCurrentTime(0);
     setStage("Input A");
-  }, [captureA, captureB, stopPlayback]);
+  }, [captureA, captureB, releaseRecord, stopPlayback]);
 
   const loadDemo = useCallback(() => {
     resetExperiment();
     const demo = makeDemoCaptures();
+    const ownsA = ownRecord(demo.a);
+    const ownsB = ownRecord(demo.b);
+    if (!ownsA || !ownsB) {
+      releaseRecord(demo.a);
+      releaseRecord(demo.b);
+      return;
+    }
     setCaptureA(demo.a);
     setCaptureB(demo.b);
     setConfirmedA(true);
     setConfirmedB(true);
     setAboutOpen(false);
     setStage("Reveal");
-  }, [resetExperiment]);
+  }, [ownRecord, releaseRecord, resetExperiment]);
 
   const playUpgradeComparison = useCallback(() => {
     if (!captureA || !enhanced) return;
@@ -814,15 +860,14 @@ export function SignalLab() {
   return (
     <div ref={appShellRef} className="app-shell">
       <header className="site-header">
-        <button
+        <Link
           className="brand-button"
-          type="button"
-          onClick={resetExperiment}
+          href="/"
           aria-label="Signal Enhancer home"
         >
           <SignalMark />
           <span>Signal Enhancer</span>
-        </button>
+        </Link>
         <button
           className="about-button"
           type="button"

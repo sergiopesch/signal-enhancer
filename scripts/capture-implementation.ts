@@ -12,15 +12,36 @@ const outputDirectory = resolve(
 async function waitForStageMotion(page: Page) {
   await page.locator(".stage").evaluate(async (element) => {
     await Promise.all(
-      element.getAnimations().map((animation) => animation.finished),
+      element
+        .getAnimations({ subtree: true })
+        .map((animation) => animation.finished),
     );
   });
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.waitForFunction(() => window.scrollY === 0);
 }
 
-async function openApp(page: Page) {
+async function waitForLandingMotion(page: Page) {
+  await page.getByRole("main").evaluate(async (element) => {
+    await Promise.all(
+      element
+        .getAnimations({ subtree: true })
+        .map((animation) => animation.finished),
+    );
+  });
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.waitForFunction(() => window.scrollY === 0);
+}
+
+async function openLanding(page: Page) {
   await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
+  await page
+    .getByRole("heading", { name: "Every input leaves a trace." })
+    .waitFor();
+}
+
+async function openApp(page: Page) {
+  await page.goto(`${baseUrl}/lab`, { waitUntil: "domcontentloaded" });
   await page.locator('.app-shell[data-hydrated="true"]').waitFor();
 }
 
@@ -42,6 +63,12 @@ async function captureDesktop() {
     const page = await browser.newPage({
       viewport: { width: 1536, height: 1024 },
       deviceScaleFactor: 1,
+    });
+
+    await openLanding(page);
+    await waitForLandingMotion(page);
+    await page.screenshot({
+      path: resolve(outputDirectory, "00-home-desktop.png"),
     });
 
     await openApp(page);
@@ -98,6 +125,12 @@ async function captureMobile() {
       isMobile: true,
       hasTouch: true,
     });
+    await openLanding(page);
+    await waitForLandingMotion(page);
+    await page.screenshot({
+      path: resolve(outputDirectory, "00-home-mobile.png"),
+    });
+
     await openPreparedReveal(page);
     await page.screenshot({
       path: resolve(outputDirectory, "05-reveal-mobile.png"),

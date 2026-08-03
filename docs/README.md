@@ -21,6 +21,8 @@ These images were captured from the current local production-mode build at nativ
 
 | State                    | Capture                                                                         |
 | ------------------------ | ------------------------------------------------------------------------------- |
+| Minimal entry            | [Desktop PNG](brand-redesign/implementation/00-home-desktop.png)                |
+| Minimal entry            | [Mobile viewport PNG](brand-redesign/implementation/00-home-mobile.png)         |
 | Reference and setup      | [Desktop PNG](brand-redesign/implementation/01-setup-desktop.png)               |
 | Comparison reveal        | [Desktop PNG](brand-redesign/implementation/02-reveal-desktop.png)              |
 | Upgrade in progress      | [Desktop PNG](brand-redesign/implementation/03-upgrade-progress-desktop.png)    |

@@ -33,7 +33,6 @@ html {
   min-width: 320px;
   background: var(--canvas);
   color: var(--ink);
-  scroll-behavior: smooth;
 }
 
 body {
@@ -135,6 +134,7 @@ h1 {
   gap: 12px;
   letter-spacing: -0.02em;
   padding: 8px 0;
+  text-decoration: none;
 }
 
 .signal-mark {
