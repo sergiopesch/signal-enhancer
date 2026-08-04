@@ -36,7 +36,7 @@ sequenceDiagram
     B->>V: Commit exact object path and checksum
     V->>Blob: HEAD and validate committed object
     V->>DB: Record first valid commit for each slot
-    B->>V: Finalize the one deep-upgrade request
+    B->>V: Finalize with a client-known upgrade UUID
     V->>DB: Atomically reserve capacity and create job
     V->>W: Start upgrade workflow(jobId)
     V-->>B: 202 + job/run ID
@@ -94,8 +94,8 @@ Use a dedicated private Vercel Blob store. Signed URLs introduced in 2026 allow 
 - Result PUT URL: deterministic attempt-scoped pathname, persisted on the job before any five-minute write grant is issued.
 - Result artifacts remain immutable per processing attempt; overwrite and random suffixes are disabled.
 - An authoritative `HEAD` verifies committed size and any returned MIME metadata before the job starts; the worker then performs bounded RIFF/WAVE validation before inference.
-- Cleanup enumerates both bounded A/B attempt paths, every stored grant/commit path, and every persisted result, report, and derived-artifact path. Objects become eligible for deletion after session expiry; database discovery records remain for a 15-minute write-drain window before cascade so a later cleanup pass can retry interrupted deletion.
-- Live launch requires an hourly-or-faster scheduler. The safe Hobby demo uses daily no-op housekeeping because it stores no server audio.
+- Cleanup waits through a 15-minute post-expiry write-drain window, then enumerates both bounded A/B attempt paths, every stored grant/commit path, and every persisted result, report, and derived-artifact path. Database discovery rows cascade only after every tracked object is deleted, so a later cleanup pass can retry interrupted deletion safely.
+- Live launch uses a five-minute scheduler with bounded concurrent deletion and backlog reporting. The safe Hobby demo uses daily no-op housekeeping because it stores no server audio.
 - Never log signed URLs, Blob tokens, or request bodies.
 
 Initial maximum WAV size is 4 MiB for a 20-second mono 48 kHz PCM16 clip plus safe overhead. Server validation rejects non-WAV content even when MIME and filename appear valid.
@@ -112,9 +112,9 @@ Terminal states:
 
 `failed | expired | cancelled`
 
-Workflow events carry a monotonically increasing sequence, one of the seven named product stages, or a sanitized terminal failure. `GET /api/upgrades/:runId/events` serves NDJSON and accepts an optional `startIndex` cursor. The current browser opens one stream, then reads final state and the authorized result from `GET /api/upgrades/:runId` after a normal stream close; automatic reconnect remains future work.
+Workflow events carry a monotonically increasing sequence, one of the seven named product stages, or a sanitized terminal failure. `GET /api/upgrades/:runId/events` serves NDJSON and accepts an optional `startIndex` cursor. The current browser opens one stream, then reads final state and the authorized result from `GET /api/upgrades/:runId` after a normal stream close; automatic reconnect remains future work. The browser chooses the job's public UUID before dispatch, so reset, navigation, a lost start response, or a late response can all address the same cancellation route without waiting for a server-generated identifier.
 
-The status route exposes stored result metadata to an authorized session. The current interface consumes the enhanced WAV and shows a restrained generic processing record, but it does not yet render the raw backend metadata as a detailed receipt.
+The status route exposes stored result metadata to an authorized session. The current interface verifies the enhanced WAV hash, shows the model family and short immutable revision, and keeps the complete route, artifact, and version receipt server-side rather than dumping raw metadata into the visual surface.
 
 Workflow step rules:
 
@@ -155,7 +155,7 @@ Workflow step rules:
 
 ### `upgrade_jobs`
 
-- session ID, workflow run ID, state, attempt count
+- session ID, client-known public cancellation ID, workflow run ID, state, attempt count
 - selected source (`A` in v1)
 - routing decision; persisted result, report, and derived-artifact Blob pathnames
 - enhanced-WAV SHA-256
@@ -253,9 +253,11 @@ The checked-in GitHub Actions foundation runs:
 2. the prepared desktop and mobile Playwright journey;
 3. worker lint, typecheck, unit tests, and a non-root container build from the committed lockfile.
 
-Before promoting live inference, the release workflow must additionally produce an SBOM, scan the built digest, publish that immutable digest, and smoke-test it before updating the endpoint. Those paid/live promotion steps are intentionally not triggered by the initial demo pipeline.
+The worker gate builds the Resemble-enabled production image, verifies its identity and runtime dependency boundary, produces an SPDX SBOM, and blocks high or critical image findings. Publishing and pulling an immutable registry digest, validating the provider snapshot, and running the paid live smoke test remain deliberate promotion steps.
 
 Production changes pin the container digest and model commit. The endpoint update remains a deliberate environment promotion, not a floating “latest” deploy.
+
+The public `/api/health` route proves process liveness and fail-closed configuration only. The `CRON_SECRET`-authenticated `/api/internal/readiness` route performs the release probe: it verifies the current migration ledger/product tables, private Blob signing and connectivity without creating an object, and the authenticated worker build/pipeline/DSP/model contract. It returns component status only and may wake a scaled-to-zero endpoint. The complete procedure is in the [production runbook](PRODUCTION_RUNBOOK.md).
 
 Protocol rollouts update the worker first. During the `guided-reading-v1` transition, the worker accepts only the exact legacy (`diagnostic-speech` / `v1`) and guided (`guided-reading-v1` / `1.0.0`) pairs; mixed pairs fail validation. The web rejects legacy sessions before capture lookup, quota reservation, workflow start, or worker warm-up. After the 24-hour legacy-session window closes, the compatibility pair can be removed in a dedicated worker release.
 

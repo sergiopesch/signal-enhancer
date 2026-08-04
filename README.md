@@ -3,10 +3,10 @@
 
   <h1>Signal Enhancer</h1>
   <p><strong>Every input leaves a trace.</strong></p>
-  <p>A calibrated editorial instrument for inspecting two guided readings, one input at a time.</p>
+  <p>A recovered xeno-signal instrument for inspecting two guided readings, one input at a time.</p>
 </div>
 
-![Signal Enhancer minimal homepage: an editorial invitation beside the finite signal horizon](docs/brand-redesign/implementation/00-home-desktop.png)
+![Signal Enhancer xeno-minimal homepage: the signal monolith suspended in a mineral-black void](docs/alien-redesign/qa/06-xeno-minimal-home-desktop.jpg)
 
 Signal Enhancer guides the same versioned 36-word script through Input A and Input B in two separate 20-second readings, then lets you inspect one recording at a time. It offers a restrained browser-only DSP preview and an opt-in path to deeper speech restoration without ranking hardware, promising a “raw” signal, or presenting inferred detail as recovered fact.
 
@@ -22,7 +22,7 @@ Signal Enhancer guides the same versioned 36-word script through Input A and Inp
 - Preview a transparent, non-AI local DSP pass.
 - Choose **Upgrade Input A** and, in an explicitly configured live environment, run one durable deep-upgrade job while the backend records its route, measurements, versions, and enhanced-WAV hash.
 
-The dual-signal enhancement-gate mark expresses that method: two distinct input traces approach one isolated processing stage, retain their identity, and leave as simpler, separate outputs. The interface follows the same principle—mineral black around one warm measurement surface, ultramarine and vermilion reserved for A/B identity, and provenance shown as part of the instrument rather than hidden in decorative chrome.
+The dual-signal enhancement-gate mark expresses that method: two distinct input traces approach one isolated processing stage, retain their identity, and leave as simpler, separate outputs. The interface follows the same principle—mineral black around one dominant nonhuman chamber, warm bone for its human translation, ultramarine and vermilion reserved for A/B identity, and provenance integrated into the instrument rather than hidden in decorative chrome.
 
 ## Demo and live mode are intentionally different
 
@@ -48,13 +48,13 @@ Making the repository public or deploying the web app does **not** activate live
 - **Upgrade Input A**, once per anonymous signed session in live mode
 - Private, object-scoped uploads and downloads with 24-hour artifact expiry
 
-Current implementation evidence, captured from the production-mode build:
+Current implementation evidence, captured from the native browser build:
 
-| Guided-reading setup                                                                             | Input A review                                                                                         | Input B review                                                                                                 |
-| ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
-| ![Signal Enhancer guided-reading setup](docs/brand-redesign/implementation/01-setup-desktop.png) | ![Signal Enhancer individual Input A review](docs/brand-redesign/implementation/02-reveal-desktop.png) | ![Signal Enhancer individual Input B review](docs/brand-redesign/implementation/02-reveal-input-b-desktop.png) |
+| Input A review                                                                                          | Mobile result                                                                                      | Desktop result / spectrum                                                                             |
+| ------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| ![Signal Enhancer individual Input A review](docs/alien-redesign/qa/07-xeno-minimal-reveal-desktop.jpg) | ![Signal Enhancer mobile upgrade result](docs/alien-redesign/qa/10-xeno-minimal-result-mobile.jpg) | ![Signal Enhancer desktop spectrum result](docs/alien-redesign/qa/11-xeno-minimal-result-desktop.jpg) |
 
-The [brand fidelity ledger](docs/brand-redesign/FIDELITY_LEDGER.md) records the concept-to-code decisions, current desktop and mobile evidence, and verified interaction contract.
+The [Xeno Signal fidelity ledger](docs/alien-redesign/FIDELITY_LEDGER.md) records the concept-to-code decisions, current desktop and mobile evidence, and verified interaction contract.
 
 ## Architecture
 
@@ -133,6 +133,7 @@ Live mode requires all of the following server-side values. Leave them unset in 
 | `HF_ENDPOINT_URL`                                        | Protected custom Inference Endpoint base URL                     |
 | `HF_ENDPOINT_TOKEN`                                      | Hugging Face gateway bearer token                                |
 | `HF_ENDPOINT_SHARED_SECRET`                              | Independent application-to-worker secret; at least 32 characters |
+| `HF_ENDPOINT_BUILD_REVISION`                             | Exact worker Git commit returned by `/version`                   |
 
 Generate secrets with a cryptographically secure tool, such as `openssl rand -hex 32`. Never expose a server secret with a `NEXT_PUBLIC_` prefix. Keep `SIGNAL_MODE` and `NEXT_PUBLIC_SIGNAL_MODE` aligned, provision all integrations in the same intended environment, and apply the checked-in versioned migrations in order. The runner discovers every `migrations/NNNN_*.sql` file, verifies its SHA-256 against the migration ledger, and applies each new file atomically:
 
@@ -140,7 +141,7 @@ Generate secrets with a cryptographically secure tool, such as `openssl rand -he
 npm run db:migrate
 ```
 
-Live launch additionally requires an hourly-or-faster authenticated call to `/api/internal/cleanup`. The committed Hobby-compatible demo schedule is daily because demo mode stores no server audio. See the [worker deployment guide](worker/README.md) before provisioning a paid endpoint; endpoint creation can incur GPU charges and is intentionally separate from an ordinary Vercel deployment.
+Live launch additionally requires an authenticated call to `/api/internal/cleanup` every five minutes so bounded, concurrent deletion can drain a backlog safely. This schedule requires Vercel Pro or Enterprise; do not deploy this live configuration to Hobby. The authenticated `/api/internal/readiness` probe verifies migrations, private Blob authority, and the exact worker build/model contract without returning credentials. Follow the [production runbook](docs/PRODUCTION_RUNBOOK.md) and [worker deployment guide](worker/README.md) before provisioning paid services or promoting an alias.
 
 ## Privacy and security
 
@@ -148,7 +149,7 @@ Live launch additionally requires an hourly-or-faster authenticated call to `/ap
 - Live capture grants are private, object-scoped, non-overwriting, bounded by session expiry, and limited to at most two immutable path attempts per input slot.
 - Live result grants are private, attempt-scoped, non-overwriting, and short-lived.
 - Live sessions, captures, results, and reports expire after 24 hours.
-- On each authenticated cleanup pass, every tracked object path is deleted after expiry; discovery records remain through a 15-minute write-drain window before expired database rows cascade.
+- Each authenticated cleanup pass waits through a 15-minute post-expiry write-drain window, then deletes every tracked object path before expired database rows cascade.
 - Signed URLs, credentials, request bodies, and captured audio are excluded from application logs.
 - Size, duration, MIME, object path, hash, RIFF structure, codec, channel count, and decoded samples are validated at successive trust boundaries.
 - Global daily and active-job capacity is reserved atomically after both captures commit and before the enhancement workflow or inference begins.
@@ -159,15 +160,16 @@ Report vulnerabilities privately by following the [security policy](SECURITY.md)
 
 Start with the [documentation index](docs/README.md).
 
-| Document                                                        | What it defines                                                    |
-| --------------------------------------------------------------- | ------------------------------------------------------------------ |
-| [Product specification](docs/PRODUCT_SPEC.md)                   | Canonical journey, product claims, privacy, and deferred scope     |
-| [Architecture](docs/ARCHITECTURE.md)                            | Web, storage, workflow, worker, and deployment contracts           |
-| [Brand research](docs/brand-redesign/BRAND_RESEARCH.md)         | Competitive study, voice, and differentiation                      |
-| [Brand System v2](docs/brand-redesign/BRAND_SYSTEM_V2.md)       | Enhancement-gate identity, palette, type, layout, motion, and copy |
-| [Brand fidelity ledger](docs/brand-redesign/FIDELITY_LEDGER.md) | Concept-to-code evidence and interaction verification              |
-| [Worker guide](worker/README.md)                                | FastAPI contract, local checks, image, and endpoint settings       |
-| [Contributing](CONTRIBUTING.md)                                 | Issue policy, paused code PRs, quality, privacy, and accessibility |
+| Document                                                              | What it defines                                                    |
+| --------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| [Product specification](docs/PRODUCT_SPEC.md)                         | Canonical journey, product claims, privacy, and deferred scope     |
+| [Architecture](docs/ARCHITECTURE.md)                                  | Web, storage, workflow, worker, and deployment contracts           |
+| [Production runbook](docs/PRODUCTION_RUNBOOK.md)                      | Live provisioning, verification, promotion, and rollback gates     |
+| [Audio model strategy](docs/AUDIO_MODEL_STRATEGY.md)                  | Hugging Face model decision, challengers, and promotion gates      |
+| [Xeno Signal design system](docs/alien-redesign/DESIGN_SYSTEM.md)     | Current identity, palette, type, chamber, motion, and copy         |
+| [Xeno Signal fidelity ledger](docs/alien-redesign/FIDELITY_LEDGER.md) | Current concept-to-code evidence and interaction verification      |
+| [Worker guide](worker/README.md)                                      | FastAPI contract, local checks, image, and endpoint settings       |
+| [Contributing](CONTRIBUTING.md)                                       | Issue policy, paused code PRs, quality, privacy, and accessibility |
 
 ## Repository map
 

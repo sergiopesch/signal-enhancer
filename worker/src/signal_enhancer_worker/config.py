@@ -6,14 +6,42 @@ import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
+from typing import Final, Literal
 
+DEFAULT_RESEMBLE_MODEL_REPOSITORY: Final[Literal["ResembleAI/resemble-enhance"]] = (
+    "ResembleAI/resemble-enhance"
+)
 DEFAULT_RESEMBLE_SOURCE_REVISION = "8e978149bfe8abab3eb77d965d579a111afdb0ff"
+DEFAULT_RESEMBLE_SOURCE_REPOSITORY: Final[
+    Literal["https://github.com/resemble-ai/resemble-enhance"]
+] = "https://github.com/resemble-ai/resemble-enhance"
 DEFAULT_RESEMBLE_MODEL_REVISION = "4e3510ce4a8391159f665903544c5150bee7b2cb"
 DEFAULT_RESEMBLE_CHECKPOINT_SHA256 = (
     "f9d035f318de3e6d919bc70cf7ad7d32b4fe92ec5cbe0b30029a27f5db07d9d6"
 )
+DEFAULT_RESEMBLE_INFERENCE_NFE = 32
+DEFAULT_RESEMBLE_INFERENCE_SOLVER = "midpoint"
+DEFAULT_RESEMBLE_INFERENCE_LAMBD = 0.35
+DEFAULT_RESEMBLE_INFERENCE_TAU = 0.45
+DEFAULT_RESEMBLE_INFERENCE_PROFILE: Final[
+    Literal["enhancer-stage2:nfe=32:solver=midpoint:lambd=0.35:tau=0.45"]
+] = "enhancer-stage2:nfe=32:solver=midpoint:lambd=0.35:tau=0.45"
+DEFAULT_RESEMBLE_ARTIFACT_MANIFEST: Final[tuple[tuple[str, str], ...]] = (
+    (
+        "ds/G/default/mp_rank_00_model_states.pt",
+        DEFAULT_RESEMBLE_CHECKPOINT_SHA256,
+    ),
+    (
+        "ds/G/latest",
+        "37a8eec1ce19687d132fe29051dca629d164e2c4958ba141d5f4133a33f0688f",
+    ),
+    (
+        "hparams.yaml",
+        "80c3f15bc5a5b2cacf2c698699a0f6599d62911c0d53e1d6dee895c0d7cbaeac",
+    ),
+)
 _REVISION_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]{6,127}$")
+_GIT_COMMIT_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 
 
 def _read_bool(name: str, default: bool) -> bool:
@@ -45,7 +73,7 @@ class Settings:
     environment: Literal["development", "test", "production"] = "production"
     allow_insecure_storage_http: bool = False
     engine: Literal["dsp", "resemble"] = "dsp"
-    allow_dsp_fallback: bool = True
+    allow_dsp_fallback: bool = False
     max_wav_bytes: int = 4 * 1024 * 1024
     max_duration_seconds: float = 20.0
     max_request_bytes: int = 64 * 1024
@@ -73,7 +101,7 @@ class Settings:
             environment=environment,  # type: ignore[arg-type]
             allow_insecure_storage_http=_read_bool("SIGNAL_ALLOW_INSECURE_STORAGE_HTTP", False),
             engine=engine,  # type: ignore[arg-type]
-            allow_dsp_fallback=_read_bool("SIGNAL_ALLOW_DSP_FALLBACK", True),
+            allow_dsp_fallback=_read_bool("SIGNAL_ALLOW_DSP_FALLBACK", False),
             max_wav_bytes=int(os.getenv("SIGNAL_MAX_WAV_BYTES", str(4 * 1024 * 1024))),
             max_duration_seconds=float(os.getenv("SIGNAL_MAX_DURATION_SECONDS", "20")),
             max_request_bytes=int(os.getenv("SIGNAL_MAX_REQUEST_BYTES", str(64 * 1024))),
@@ -82,9 +110,7 @@ class Settings:
                 os.getenv("SIGNAL_TMP_ROOT", "/tmp/signal-enhancer")  # noqa: S108
             ),
             build_revision=os.getenv("SIGNAL_BUILD_REVISION", "dev"),
-            pipeline_revision=os.getenv(
-                "SIGNAL_PIPELINE_REVISION", "signal-enhancer-audio/1.0.0"
-            ),
+            pipeline_revision=os.getenv("SIGNAL_PIPELINE_REVISION", "signal-enhancer-audio/1.0.0"),
             dsp_revision=os.getenv("SIGNAL_DSP_REVISION", "restrained-dsp/1.0.0"),
             resemble_source_revision=os.getenv(
                 "SIGNAL_RESEMBLE_SOURCE_REVISION",
@@ -127,7 +153,8 @@ class Settings:
         if not self.temp_root.is_absolute() or resolved_temp_root in broad_temp_roots:
             problems.append("unsafe_temp_root")
         if not _REVISION_PATTERN.fullmatch(self.build_revision) or (
-            self.environment == "production" and self.build_revision == "dev"
+            self.environment == "production"
+            and not _GIT_COMMIT_PATTERN.fullmatch(self.build_revision)
         ):
             problems.append("missing_build_revision")
         if not _REVISION_PATTERN.fullmatch(self.pipeline_revision):
@@ -136,6 +163,8 @@ class Settings:
             problems.append("invalid_dsp_revision")
         if self.environment == "production" and self.engine != "resemble":
             problems.append("production_requires_resemble")
+        if self.environment == "production" and self.allow_dsp_fallback:
+            problems.append("production_disallows_dsp_fallback")
         if (
             self.resemble_source_revision != DEFAULT_RESEMBLE_SOURCE_REVISION
             or self.resemble_model_revision != DEFAULT_RESEMBLE_MODEL_REVISION

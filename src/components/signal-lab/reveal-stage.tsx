@@ -382,6 +382,40 @@ export function RevealStage({
           />
         </div>
 
+        <div className="track-review-footer">
+          <p className="track-review-qualification">
+            <Info size={17} aria-hidden="true" />
+            These measurements describe this recording. Voice delivery,
+            distance, position, room sound, and browser or device processing can
+            all affect the result; they do not diagnose the hardware by
+            themselves.
+          </p>
+          <div className="track-review-actions">
+            <button
+              type="button"
+              className="button button-secondary"
+              onClick={onRepeat}
+            >
+              <RotateCcw size={18} />
+              Repeat both captures
+            </button>
+            <button
+              type="button"
+              className="button button-primary"
+              onClick={onUpgrade}
+            >
+              Upgrade Input A
+              <ArrowRight size={19} />
+            </button>
+          </div>
+          <p className="privacy-note">
+            <Info size={16} />
+            {signalMode === "live"
+              ? "Upgrade access is private and expires after 24 hours."
+              : "Audio stays in this tab and is released when you reset or close it."}
+          </p>
+        </div>
+
         <section className="track-detail" aria-labelledby="track-detail-title">
           <header className="track-detail-heading">
             <p className="instrument-label">Measured detail</p>
@@ -429,39 +463,6 @@ export function RevealStage({
             />
           </div>
         </section>
-      </div>
-
-      <div className="track-review-footer">
-        <p className="track-review-qualification">
-          <Info size={17} aria-hidden="true" />
-          These measurements describe this recording. Voice delivery, distance,
-          position, room sound, and browser or device processing can all affect
-          the result; they do not diagnose the hardware by themselves.
-        </p>
-        <div className="track-review-actions">
-          <button
-            type="button"
-            className="button button-secondary"
-            onClick={onRepeat}
-          >
-            <RotateCcw size={18} />
-            Repeat both captures
-          </button>
-          <button
-            type="button"
-            className="button button-primary"
-            onClick={onUpgrade}
-          >
-            Upgrade Input A
-            <ArrowRight size={19} />
-          </button>
-        </div>
-        <p className="privacy-note">
-          <Info size={16} />
-          {signalMode === "live"
-            ? "Upgrade access is private and expires after 24 hours."
-            : "Audio stays in this tab and is released when you reset or close it."}
-        </p>
       </div>
     </section>
   );

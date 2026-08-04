@@ -8,6 +8,9 @@ import {
   createPrivateReadUrl,
   createResultPutUrl,
   MAX_CAPTURE_BYTES,
+  MAX_DIFFERENCE_BYTES,
+  MAX_REPORT_BYTES,
+  verifyResultArtifact,
 } from "@/lib/server/blob";
 import { workerResultSchema } from "@/lib/server/contracts";
 import { requireLiveEnvironment } from "@/lib/server/env";
@@ -16,8 +19,15 @@ import {
   getExperimentSessionById,
   getJobById,
   getSessionCaptures,
-  updateJobState,
+  transitionJobStateIdempotently,
+  updateJobStateIfCurrent,
 } from "@/lib/server/repository";
+import {
+  assertProductionWorkerVersion,
+  isRetryableWorkerStatus,
+  probeProductionWorker,
+  WorkerProbeError,
+} from "@/lib/server/worker";
 
 const STAGE_LABELS = {
   receiving_capture: "Receiving capture",
@@ -41,6 +51,28 @@ type PreparedUpgrade = {
     report: string;
   };
 };
+
+export const UPGRADE_WORKER_MAX_RETRIES = 0;
+
+export function upgradeResultCoordinates({
+  sessionId,
+  internalJobId,
+  publicJobId,
+}: {
+  sessionId: string;
+  internalJobId: string;
+  publicJobId: string;
+}) {
+  const outputRoot = `sessions/${sessionId}/results/${internalJobId}/${publicJobId}`;
+  return {
+    attemptId: publicJobId,
+    resultPaths: {
+      enhanced: `${outputRoot}/enhanced.wav`,
+      difference: `${outputRoot}/difference.json`,
+      report: `${outputRoot}/report.json`,
+    },
+  };
+}
 
 type ProgressEvent = {
   sequence: number;
@@ -94,7 +126,15 @@ async function prepareUpgrade(jobId: string): Promise<PreparedUpgrade> {
       "Both committed captures are required before an upgrade can start.",
     );
 
-  const attemptId = crypto.randomUUID();
+  // This job has exactly one non-retried worker invocation, so its persisted
+  // public UUID is also the stable worker-attempt coordinate. If this durable
+  // preparation step is replayed, it remints short-lived grants for the same
+  // immutable paths instead of orphaning a fresh path on every retry.
+  const { attemptId, resultPaths } = upgradeResultCoordinates({
+    sessionId: job.sessionId,
+    internalJobId: job.id,
+    publicJobId: job.publicId,
+  });
   const inputAUrl = await createPrivateReadUrl(
     inputA.pathname,
     "get",
@@ -105,25 +145,36 @@ async function prepareUpgrade(jobId: string): Promise<PreparedUpgrade> {
     "get",
     job.expiresAt,
   );
-  const outputRoot = `sessions/${job.sessionId}/results/${job.id}/${attemptId}`;
-  const resultPaths = {
-    enhanced: `${outputRoot}/enhanced.wav`,
-    difference: `${outputRoot}/difference.json`,
-    report: `${outputRoot}/report.json`,
-  };
-  await updateJobState(jobId, "processing", {
-    resultPathname: resultPaths.enhanced,
-    differencePathname: resultPaths.difference,
-    reportPathname: resultPaths.report,
-  });
+  const activeJob = await updateJobStateIfCurrent(
+    jobId,
+    ["processing"],
+    "processing",
+    {
+      resultPathname: resultPaths.enhanced,
+      differencePathname: resultPaths.difference,
+      reportPathname: resultPaths.report,
+    },
+  );
+  if (!activeJob) throw new FatalError("This upgrade is no longer active.");
   const [enhancedUrl, differenceUrl, reportUrl] = await Promise.all([
-    createResultPutUrl(resultPaths.enhanced, "audio/wav", job.expiresAt),
+    createResultPutUrl(
+      resultPaths.enhanced,
+      "audio/wav",
+      job.expiresAt,
+      MAX_CAPTURE_BYTES,
+    ),
     createResultPutUrl(
       resultPaths.difference,
       "application/json",
       job.expiresAt,
+      MAX_DIFFERENCE_BYTES,
     ),
-    createResultPutUrl(resultPaths.report, "application/json", job.expiresAt),
+    createResultPutUrl(
+      resultPaths.report,
+      "application/json",
+      job.expiresAt,
+      MAX_REPORT_BYTES,
+    ),
   ]);
 
   const expiresAt = (validUntil: number) => new Date(validUntil).toISOString();
@@ -142,11 +193,12 @@ async function prepareUpgrade(jobId: string): Promise<PreparedUpgrade> {
     pathname: string,
     signed: Awaited<ReturnType<typeof createResultPutUrl>>,
     contentType: "audio/wav" | "application/json",
+    maximumSizeInBytes: number,
   ) => ({
     object_path: pathname,
     url: signed.url,
     expires_at: expiresAt(signed.validUntil),
-    max_bytes: MAX_CAPTURE_BYTES,
+    max_bytes: maximumSizeInBytes,
     content_type: contentType,
   });
 
@@ -172,16 +224,19 @@ async function prepareUpgrade(jobId: string): Promise<PreparedUpgrade> {
           resultPaths.enhanced,
           enhancedUrl,
           "audio/wav",
+          MAX_CAPTURE_BYTES,
         ),
         difference_json: outputDescriptor(
           resultPaths.difference,
           differenceUrl,
           "application/json",
+          MAX_DIFFERENCE_BYTES,
         ),
         report_json: outputDescriptor(
           resultPaths.report,
           reportUrl,
           "application/json",
+          MAX_REPORT_BYTES,
         ),
       },
     },
@@ -201,10 +256,17 @@ async function beginUpgrade(jobId: string) {
       "Both committed captures are required before an upgrade can start.",
     );
   }
-  await updateJobState(jobId, "warming", {
-    startedAt: new Date(),
-    attemptCount: job.attemptCount + 1,
-  });
+  const activeJob = await transitionJobStateIdempotently(
+    jobId,
+    "queued",
+    "warming",
+    {
+      startedAt: new Date(),
+      attemptCount: job.attemptCount + 1,
+    },
+  );
+  if (!activeJob) throw new FatalError("This upgrade is no longer active.");
+  if (!activeJob.transitioned) return;
   await writeProgress(
     jobId,
     STAGE_LABELS.receiving_capture,
@@ -215,27 +277,51 @@ async function beginUpgrade(jobId: string) {
 async function warmUpgradeEngine(jobId: string) {
   "use step";
 
+  const job = await getJobById(jobId);
+  if (job.state === "processing") return;
+  if (job.state !== "warming")
+    throw new FatalError("This upgrade is no longer active.");
+
   const environment = requireLiveEnvironment();
-  const response = await fetch(
-    `${environment.HF_ENDPOINT_URL.replace(/\/$/, "")}/health`,
-    {
-      headers: {
-        Authorization: `Bearer ${environment.HF_ENDPOINT_TOKEN}`,
-        "X-Signal-Endpoint-Secret": environment.HF_ENDPOINT_SHARED_SECRET,
-        "X-Scale-Up-Timeout": "600",
-      },
-      cache: "no-store",
-      signal: AbortSignal.timeout(610_000),
+  const response = await fetch(`${environment.HF_ENDPOINT_URL}/health`, {
+    headers: {
+      Authorization: `Bearer ${environment.HF_ENDPOINT_TOKEN}`,
+      "X-Signal-Endpoint-Secret": environment.HF_ENDPOINT_SHARED_SECRET,
+      "X-Scale-Up-Timeout": "600",
     },
-  );
-  if ([429, 502, 503].includes(response.status)) {
+    cache: "no-store",
+    redirect: "error",
+    signal: AbortSignal.timeout(610_000),
+  });
+  if (isRetryableWorkerStatus(response.status)) {
     throw new Error(`Upgrade engine is still warming (${response.status}).`);
   }
   if (!response.ok)
     throw new FatalError(
       `Upgrade engine health check failed (${response.status}).`,
     );
-  await updateJobState(jobId, "processing");
+  const health = await response.json().catch(() => null);
+  if (
+    !health ||
+    typeof health !== "object" ||
+    (health as Record<string, unknown>).status !== "ready"
+  ) {
+    throw new FatalError("Upgrade engine returned an invalid health record.");
+  }
+  try {
+    await probeProductionWorker(environment);
+  } catch (error) {
+    if (error instanceof WorkerProbeError && error.retryable) throw error;
+    throw new FatalError(
+      "Upgrade engine does not match the approved production release.",
+    );
+  }
+  const activeJob = await transitionJobStateIdempotently(
+    jobId,
+    "warming",
+    "processing",
+  );
+  if (!activeJob) throw new FatalError("This upgrade is no longer active.");
 }
 
 function safeWorkerError(value: unknown) {
@@ -255,27 +341,27 @@ async function invokeUpgradeEngine(prepared: PreparedUpgrade) {
   "use step";
 
   const environment = requireLiveEnvironment();
-  const response = await fetch(
-    `${environment.HF_ENDPOINT_URL.replace(/\/$/, "")}/v1/enhance`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${environment.HF_ENDPOINT_TOKEN}`,
-        "X-Signal-Endpoint-Secret": environment.HF_ENDPOINT_SHARED_SECRET,
-        Accept: "application/x-ndjson",
-        "Content-Type": "application/json",
-        "X-Scale-Up-Timeout": "600",
-      },
-      body: JSON.stringify(prepared.body),
-      cache: "no-store",
-      signal: AbortSignal.timeout(700_000),
+  const response = await fetch(`${environment.HF_ENDPOINT_URL}/v1/enhance`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${environment.HF_ENDPOINT_TOKEN}`,
+      "X-Signal-Endpoint-Secret": environment.HF_ENDPOINT_SHARED_SECRET,
+      Accept: "application/x-ndjson",
+      "Content-Type": "application/json",
+      "X-Scale-Up-Timeout": "600",
     },
-  );
+    body: JSON.stringify(prepared.body),
+    cache: "no-store",
+    redirect: "error",
+    // Result grants live for five minutes. Never let a single attempt outlive
+    // the immutable input/output URLs that scope it.
+    signal: AbortSignal.timeout(280_000),
+  });
 
   if (!response.ok) {
     const payload = await response.json().catch(() => null);
     const workerError = safeWorkerError(payload);
-    if ([429, 502, 503].includes(response.status) || workerError?.retryable) {
+    if (isRetryableWorkerStatus(response.status) || workerError?.retryable) {
       throw new Error(
         workerError?.message ??
           `Upgrade worker temporarily unavailable (${response.status}).`,
@@ -334,6 +420,16 @@ async function invokeUpgradeEngine(prepared: PreparedUpgrade) {
   if (!resultPayload)
     throw new Error("Upgrade worker completed without a result record.");
   const result = workerResultSchema.parse(resultPayload);
+  try {
+    assertProductionWorkerVersion(
+      result.versions,
+      environment.HF_ENDPOINT_BUILD_REVISION,
+    );
+  } catch {
+    throw new FatalError(
+      "Upgrade worker result came from an unapproved production release.",
+    );
+  }
   const artifactPaths = result.artifacts;
   if (
     result.job_id !== prepared.jobId ||
@@ -348,20 +444,47 @@ async function invokeUpgradeEngine(prepared: PreparedUpgrade) {
     );
   }
 
-  await updateJobState(prepared.jobId, "completed", {
-    completedAt: new Date(),
-    resultPathname: result.artifacts.enhanced_wav.object_path,
-    differencePathname: result.artifacts.difference_json.object_path,
-    reportPathname: result.artifacts.report_json.object_path,
-    resultSha256: result.artifacts.enhanced_wav.sha256,
-    routing: result.routing,
-    resultMetadata: {
-      before: result.before,
-      after: result.after,
-      comparisonB: result.comparison_b,
-      versions: result.versions,
+  await Promise.all([
+    verifyResultArtifact(
+      artifactPaths.enhanced_wav.object_path,
+      artifactPaths.enhanced_wav.byte_size,
+      "audio/wav",
+      MAX_CAPTURE_BYTES,
+    ),
+    verifyResultArtifact(
+      artifactPaths.difference_json.object_path,
+      artifactPaths.difference_json.byte_size,
+      "application/json",
+      MAX_DIFFERENCE_BYTES,
+    ),
+    verifyResultArtifact(
+      artifactPaths.report_json.object_path,
+      artifactPaths.report_json.byte_size,
+      "application/json",
+      MAX_REPORT_BYTES,
+    ),
+  ]);
+
+  const completedJob = await updateJobStateIfCurrent(
+    prepared.jobId,
+    ["processing"],
+    "completed",
+    {
+      completedAt: new Date(),
+      resultPathname: result.artifacts.enhanced_wav.object_path,
+      differencePathname: result.artifacts.difference_json.object_path,
+      reportPathname: result.artifacts.report_json.object_path,
+      resultSha256: result.artifacts.enhanced_wav.sha256,
+      routing: result.routing,
+      resultMetadata: {
+        before: result.before,
+        after: result.after,
+        comparisonB: result.comparison_b,
+        versions: result.versions,
+      },
     },
-  });
+  );
+  if (!completedJob) throw new FatalError("This upgrade is no longer active.");
   await writeProgress(
     prepared.jobId,
     STAGE_LABELS.preparing_report,
@@ -371,15 +494,29 @@ async function invokeUpgradeEngine(prepared: PreparedUpgrade) {
   return result;
 }
 
+// Retrying this step would reuse non-overwriting result paths after a partial
+// upload. Only preparation may retry and remint grants for this persisted
+// attempt coordinate; the worker invocation itself is deliberately once-only.
+invokeUpgradeEngine.maxRetries = UPGRADE_WORKER_MAX_RETRIES;
+
 async function failUpgrade(jobId: string, message: string) {
   "use step";
 
-  await updateJobState(jobId, "failed", {
-    completedAt: new Date(),
-    errorCode: "upgrade_failed",
-    errorMessage:
-      "The deeper restoration did not finish. Your browser preview remains available.",
-  });
+  const failedJob = await updateJobStateIfCurrent(
+    jobId,
+    ["queued", "warming", "processing"],
+    "failed",
+    {
+      completedAt: new Date(),
+      errorCode: "upgrade_failed",
+      errorMessage:
+        "The deeper restoration did not finish. Your browser preview remains available.",
+    },
+  );
+  if (!failedJob) {
+    await getWritable<Uint8Array>().close();
+    return;
+  }
   await writeProgress(jobId, "Upgrade unavailable", message, "failed");
   await getWritable<Uint8Array>().close();
 }

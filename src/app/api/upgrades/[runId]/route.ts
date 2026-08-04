@@ -8,9 +8,11 @@ import {
   SignalError,
 } from "@/lib/server/errors";
 import {
+  cancelUnattachedUpgradeJobReservation,
+  getJobById,
   getOwnedJobBySessionHash,
   listJobEvents,
-  updateJobState,
+  updateJobStateIfCurrent,
 } from "@/lib/server/repository";
 import { readSessionToken } from "@/lib/server/session";
 
@@ -24,7 +26,10 @@ async function authorize(request: NextRequest, runId: string) {
       "This upgrade requires its experiment session.",
       401,
     );
-  return getOwnedJobBySessionHash(runId, identity.sessionHash);
+  return {
+    job: await getOwnedJobBySessionHash(runId, identity.sessionHash),
+    identity,
+  };
 }
 
 export async function GET(
@@ -33,7 +38,7 @@ export async function GET(
 ) {
   try {
     const { runId } = await context.params;
-    const job = await authorize(request, runId);
+    const { job } = await authorize(request, runId);
     const events = await listJobEvents(job.id);
     const result =
       job.state === "completed" && job.resultPathname
@@ -45,6 +50,8 @@ export async function GET(
         state: job.state,
         events,
         resultUrl: result?.url ?? null,
+        resultSha256: job.state === "completed" ? job.resultSha256 : null,
+        routing: job.state === "completed" ? job.routing : null,
         resultMetadata: job.state === "completed" ? job.resultMetadata : null,
         error: job.errorCode
           ? { code: job.errorCode, message: job.errorMessage }
@@ -64,11 +71,60 @@ export async function DELETE(
   try {
     assertSameOrigin(request);
     const { runId } = await context.params;
-    const job = await authorize(request, runId);
-    if (job.workflowRunId) await getRun(job.workflowRunId).cancel();
-    await updateJobState(job.id, "cancelled", { completedAt: new Date() });
+    const { job, identity } = await authorize(request, runId);
+    let currentJob = job;
+    if (job.state === "queued" && !job.workflowRunId) {
+      const cancelled = await cancelUnattachedUpgradeJobReservation(
+        {
+          sessionId: job.sessionId,
+          publicId: job.publicId,
+          expiresAt: job.expiresAt,
+        },
+        identity.sessionHash,
+      );
+      if (cancelled)
+        return Response.json(
+          { state: "cancelled" },
+          { headers: { "Cache-Control": "no-store" } },
+        );
+      // An attachment or replay can win while cancellation waits for the
+      // global reservation lock. Re-read by the stable public coordinate and
+      // cancel that exact durable run rather than trusting the stale snapshot.
+      currentJob = await getOwnedJobBySessionHash(runId, identity.sessionHash);
+    }
+    const cancellableStates = [
+      "queued",
+      "warming",
+      "processing",
+      "storing",
+    ] as const;
+    if (
+      cancellableStates.includes(
+        currentJob.state as (typeof cancellableStates)[number],
+      )
+    ) {
+      if (!currentJob.workflowRunId)
+        throw new SignalError(
+          "upgrade_cancellation_pending",
+          "The upgrade attachment is still settling. Cancellation will be retried.",
+          503,
+        );
+      // Keep the job in its active, capacity-counted state until the workflow
+      // control plane acknowledges cancellation. A failed/ambiguous request
+      // therefore cannot admit a second GPU job.
+      await getRun(currentJob.workflowRunId).cancel();
+    }
+    const cancelled = await updateJobStateIfCurrent(
+      currentJob.id,
+      cancellableStates,
+      "cancelled",
+      { completedAt: new Date() },
+    );
+    const state = cancelled
+      ? "cancelled"
+      : (await getJobById(currentJob.id)).state;
     return Response.json(
-      { state: "cancelled" },
+      { state },
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch (error) {

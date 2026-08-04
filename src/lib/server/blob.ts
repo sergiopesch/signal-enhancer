@@ -2,10 +2,16 @@ import "server-only";
 
 import { issueSignedToken, presignUrl } from "@vercel/blob";
 
-import { getEnvironment, requireLiveEnvironment } from "./env";
+import {
+  getEnvironment,
+  requireCleanupEnvironment,
+  requireLiveEnvironment,
+} from "./env";
 import { SignalError } from "./errors";
 
 export const MAX_CAPTURE_BYTES = 4 * 1024 * 1024;
+export const MAX_DIFFERENCE_BYTES = 256 * 1024;
+export const MAX_REPORT_BYTES = 64 * 1024;
 export const ARTIFACT_WRITE_DRAIN_MS = 15 * 60 * 1000;
 const CAPTURE_GRANT_MS = 10 * 60 * 1000;
 const RESULT_GRANT_MS = 5 * 60 * 1000;
@@ -14,14 +20,16 @@ const WAV_TYPES = ["audio/wav", "audio/wave", "audio/x-wav"];
 
 function credentialOptions() {
   const environment = getEnvironment();
-  if (environment.BLOB_READ_WRITE_TOKEN)
-    return { token: environment.BLOB_READ_WRITE_TOKEN };
-  if (process.env.VERCEL_OIDC_TOKEN && environment.BLOB_STORE_ID) {
+  if (environment.BLOB_STORE_ID) {
     return {
-      oidcToken: process.env.VERCEL_OIDC_TOKEN,
+      ...(environment.VERCEL_OIDC_TOKEN
+        ? { oidcToken: environment.VERCEL_OIDC_TOKEN }
+        : {}),
       storeId: environment.BLOB_STORE_ID,
     };
   }
+  if (environment.BLOB_READ_WRITE_TOKEN)
+    return { token: environment.BLOB_READ_WRITE_TOKEN };
   throw new SignalError(
     "blob_not_configured",
     "Private audio storage has not been configured.",
@@ -34,8 +42,10 @@ async function issue(
   operations: Array<"get" | "head" | "put" | "delete">,
   validUntil: number,
   constraints?: { contentTypes: string[]; maximumSizeInBytes: number },
+  authority: "live" | "cleanup" = "live",
 ) {
-  requireLiveEnvironment();
+  if (authority === "cleanup") requireCleanupEnvironment();
+  else requireLiveEnvironment();
   const uploadConstraints = constraints
     ? {
         allowedContentTypes: constraints.contentTypes,
@@ -131,11 +141,12 @@ export async function createResultPutUrl(
   pathname: string,
   contentType: "audio/wav" | "application/json",
   jobExpiresAt: Date,
+  maximumSizeInBytes = MAX_CAPTURE_BYTES,
 ) {
   const validUntil = boundedValidUntil(jobExpiresAt, RESULT_GRANT_MS);
   const token = await issue(pathname, ["put"], validUntil, {
     contentTypes: [contentType],
-    maximumSizeInBytes: MAX_CAPTURE_BYTES,
+    maximumSizeInBytes,
   });
   const { presignedUrl } = await presignUrl(token, {
     access: "private",
@@ -143,7 +154,7 @@ export async function createResultPutUrl(
     pathname,
     validUntil,
     allowedContentTypes: [contentType],
-    maximumSizeInBytes: MAX_CAPTURE_BYTES,
+    maximumSizeInBytes,
     allowOverwrite: false,
     addRandomSuffix: false,
     cacheControlMaxAge: 60,
@@ -151,9 +162,60 @@ export async function createResultPutUrl(
   return { pathname, url: presignedUrl, validUntil };
 }
 
+export async function verifyResultArtifact(
+  pathname: string,
+  expectedBytes: number,
+  expectedContentType: "audio/wav" | "application/json",
+  maximumSizeInBytes: number,
+) {
+  if (
+    !Number.isInteger(expectedBytes) ||
+    expectedBytes <= 0 ||
+    expectedBytes > maximumSizeInBytes
+  ) {
+    throw new SignalError(
+      "artifact_size_mismatch",
+      "The upgrade worker returned an invalid artifact size.",
+      502,
+    );
+  }
+  const signed = await createPrivateReadUrl(pathname, "head");
+  const response = await fetch(signed.url, {
+    method: "HEAD",
+    cache: "no-store",
+    redirect: "error",
+    signal: AbortSignal.timeout(10_000),
+  });
+  const actualBytes = Number(response.headers.get("content-length"));
+  const contentType = response.headers
+    .get("content-type")
+    ?.split(";")[0]
+    ?.trim()
+    .toLowerCase();
+  if (
+    !response.ok ||
+    !Number.isFinite(actualBytes) ||
+    actualBytes !== expectedBytes ||
+    contentType !== expectedContentType
+  ) {
+    throw new SignalError(
+      "artifact_verification_failed",
+      "The uploaded upgrade artifact could not be verified.",
+      502,
+    );
+  }
+  return { bytes: actualBytes, contentType };
+}
+
 export async function createPrivateDeleteUrl(pathname: string) {
   const validUntil = Date.now() + 5 * 60 * 1000;
-  const token = await issue(pathname, ["delete"], validUntil);
+  const token = await issue(
+    pathname,
+    ["delete"],
+    validUntil,
+    undefined,
+    "cleanup",
+  );
   const { presignedUrl } = await presignUrl(token, {
     access: "private",
     operation: "delete",
@@ -161,6 +223,22 @@ export async function createPrivateDeleteUrl(pathname: string) {
     validUntil,
   });
   return { pathname, url: presignedUrl, validUntil };
+}
+
+export async function assertPrivateBlobReady() {
+  const signed = await createPrivateReadUrl(
+    "internal/readiness/credential-probe",
+    "head",
+  );
+  const response = await fetch(signed.url, {
+    method: "HEAD",
+    cache: "no-store",
+    redirect: "error",
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (!response.ok && response.status !== 404) {
+    throw new Error("Private Blob readiness check failed.");
+  }
 }
 
 export async function verifyCommittedBlob(
@@ -171,6 +249,7 @@ export async function verifyCommittedBlob(
   const response = await fetch(signed.url, {
     method: "HEAD",
     cache: "no-store",
+    redirect: "error",
     signal: AbortSignal.timeout(10_000),
   });
   if (!response.ok)

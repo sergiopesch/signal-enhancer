@@ -22,11 +22,13 @@ Production secrets belong in Vercel and Hugging Face environment settings. Never
 
 ## Data lifetime
 
-Live capture and result access expires with the 24-hour session. The cleanup route requires `CRON_SECRET`, repeatedly deletes every bounded or persisted Blob path after expiry, retains discovery rows through a 15-minute write-drain window, and only then cascades expired database records. Live launch requires that route to be called at least hourly; the committed Hobby-compatible demo schedule is daily because demo mode stores no server-side audio. Hashed abuse-control ledger rows are retained for 35 days.
+Live capture and result access expires with the 24-hour session. The cleanup route requires `CRON_SECRET`, waits through a 15-minute post-expiry write-drain window, then repeatedly deletes every bounded or persisted Blob path and cascades database discovery rows only after successful deletion. The committed five-minute schedule uses bounded concurrency, reports backlog, and requires Vercel Pro or Enterprise. Hashed abuse-control ledger rows are retained for 35 days.
 
 ## Deployment controls
 
 - Keep the worker image and model revision immutable.
+- Use the exact Node/npm toolchain and keep every dependency install script on the pinned `allowScripts` list; unexpected lifecycle scripts fail clean installation.
 - Keep the preview endpoint at maximum one replica and enforce application job caps.
 - Exercise WAF/rate-limit changes in preview and log-only mode before enforcement.
 - Do not enable `SIGNAL_MODE=live` until Neon, private Blob, cleanup authentication, the protected worker, and all required secrets are healthy.
+- Require the authenticated deep-readiness probe, physical-device journey, retention canary, and rollback evidence in the [production runbook](docs/PRODUCTION_RUNBOOK.md) before moving the production alias.

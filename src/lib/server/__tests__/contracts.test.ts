@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   commitCaptureSchema,
   createSessionSchema,
+  startUpgradeSchema,
   workerResultSchema,
 } from "../contracts";
 
@@ -75,11 +76,18 @@ function workerResult() {
     },
     versions: {
       api_schema: "1",
-      build_revision: "abc123",
-      pipeline_revision: "signal-enhancer-v1",
-      dsp_revision: "restrained-v1",
+      build_revision: "b".repeat(40),
+      pipeline_revision: "signal-enhancer-audio/1.0.0",
+      dsp_revision: "restrained-dsp/1.0.0",
       model_name: "resemble-enhance",
-      model_revision: "4e3510ce",
+      model_repository: "ResembleAI/resemble-enhance",
+      model_revision: "4e3510ce4a8391159f665903544c5150bee7b2cb",
+      model_checkpoint_sha256:
+        "f9d035f318de3e6d919bc70cf7ad7d32b4fe92ec5cbe0b30029a27f5db07d9d6",
+      source_repository: "https://github.com/resemble-ai/resemble-enhance",
+      source_revision: "8e978149bfe8abab3eb77d965d579a111afdb0ff",
+      inference_profile:
+        "enhancer-stage2:nfe=32:solver=midpoint:lambd=0.35:tau=0.45",
     },
   };
 }
@@ -99,6 +107,13 @@ describe("web boundary contracts", () => {
         admin: true,
       }),
     ).toThrow();
+  });
+
+  it("requires a client-known UUID for durable upgrade cancellation", () => {
+    expect(
+      startUpgradeSchema.parse({ sessionId: JOB_ID, upgradeId: ATTEMPT_ID }),
+    ).toMatchObject({ upgradeId: ATTEMPT_ID });
+    expect(() => startUpgradeSchema.parse({ sessionId: JOB_ID })).toThrow();
   });
 
   it("accepts only bounded, session-scoped mono captures", () => {
@@ -152,5 +167,27 @@ describe("web boundary contracts", () => {
     const invalid = workerResult();
     invalid.artifacts.enhanced_wav.content_type = "application/json";
     expect(() => workerResultSchema.parse(invalid)).toThrow();
+  });
+
+  it("fails closed on DSP fallback or unpinned model provenance", () => {
+    const valid = workerResult();
+    const fallback = {
+      ...valid,
+      routing: {
+        ...valid.routing,
+        used_engine: "dsp",
+        outcome: "dsp_fallback",
+        fallback_code: "model_unavailable",
+      },
+    };
+    expect(() => workerResultSchema.parse(fallback)).toThrow();
+
+    const floatingModel = workerResult();
+    floatingModel.versions.model_revision = "main";
+    expect(() => workerResultSchema.parse(floatingModel)).toThrow();
+
+    const untraceableBuild = workerResult();
+    untraceableBuild.versions.build_revision = "latest";
+    expect(() => workerResultSchema.parse(untraceableBuild)).toThrow();
   });
 });

@@ -29,6 +29,7 @@ UuidString = Annotated[
     ),
 ]
 Sha256 = Annotated[str, StringConstraints(strict=True, pattern=r"^[0-9a-f]{64}$")]
+GitRevision = Annotated[str, StringConstraints(strict=True, pattern=r"^[0-9a-f]{40}$")]
 ObjectPath = Annotated[
     str,
     StringConstraints(
@@ -255,7 +256,15 @@ class VersionInfo(StrictModel):
     pipeline_revision: str
     dsp_revision: str
     model_name: Literal["none", "resemble-enhance"]
-    model_revision: str | None
+    model_repository: Literal["ResembleAI/resemble-enhance"] | None
+    model_revision: GitRevision | None
+    model_checkpoint_sha256: Sha256 | None
+    source_repository: Literal["https://github.com/resemble-ai/resemble-enhance"] | None
+    source_revision: GitRevision | None
+    inference_profile: Literal[
+        "dsp-only",
+        "enhancer-stage2:nfe=32:solver=midpoint:lambd=0.35:tau=0.45",
+    ]
 
 
 class AnalyzeResponse(StrictModel):

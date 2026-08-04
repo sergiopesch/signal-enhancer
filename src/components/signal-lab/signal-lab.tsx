@@ -1,9 +1,17 @@
 "use client";
 
 import { Menu } from "lucide-react";
+import {
+  AnimatePresence,
+  domAnimation,
+  LazyMotion,
+  m,
+  MotionConfig,
+} from "motion/react";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { LabAtmosphere } from "@/components/immersive/lab-atmosphere";
 import {
   analyzeAudio,
   capturePcmWav,
@@ -14,6 +22,7 @@ import {
   stopMediaStream,
   type AudioAnalysis,
 } from "@/lib/audio";
+import { requestRemoteUpgradeCancellation } from "@/lib/client/upgrade-cancellation";
 import {
   GUIDED_READING_COUNT_IN_SECONDS,
   GUIDED_READING_DURATION_SECONDS,
@@ -32,12 +41,30 @@ import type {
   CaptureRecord,
   DeviceChoice,
   UpgradeEvent,
+  UpgradeProvenance,
 } from "./types";
 import { UpgradeStage } from "./upgrade-stage";
 
 const SIGNAL_MODE =
   process.env.NEXT_PUBLIC_SIGNAL_MODE === "live" ? "live" : "demo";
 const CAPTURE_SECONDS = GUIDED_READING_DURATION_SECONDS;
+const UPGRADE_START_TIMEOUT_MS = 30_000;
+
+const LAB_STAGE_VARIANTS = {
+  enter: { opacity: 0, scale: 0.992, y: 18 },
+  active: {
+    opacity: 1,
+    scale: 1,
+    transition: { duration: 0.52, ease: [0.2, 0.72, 0.2, 1] },
+    y: 0,
+  },
+  exit: {
+    opacity: 0,
+    scale: 0.996,
+    transition: { duration: 0.24, ease: [0.4, 0, 1, 1] },
+    y: -8,
+  },
+} as const;
 
 type PlaybackTarget = "capture-A" | "capture-B" | "original" | "enhanced";
 
@@ -69,6 +96,50 @@ function displayError(error: unknown) {
   return error instanceof Error
     ? error.message
     : "The audio device did not complete that action.";
+}
+
+function isAbortError(error: unknown) {
+  return error instanceof DOMException && error.name === "AbortError";
+}
+
+function recordValue(value: unknown): Record<string, unknown> | null {
+  return value !== null && typeof value === "object"
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function readUpgradeProvenance(
+  routingValue: unknown,
+  metadataValue: unknown,
+): UpgradeProvenance {
+  const routing = recordValue(routingValue);
+  const metadata = recordValue(metadataValue);
+  const versions = recordValue(metadata?.versions);
+  if (
+    routing?.used_engine !== "resemble" ||
+    routing.outcome !== "enhanced" ||
+    versions?.model_name !== "resemble-enhance" ||
+    typeof versions.model_repository !== "string" ||
+    typeof versions.model_revision !== "string" ||
+    typeof versions.model_checkpoint_sha256 !== "string" ||
+    typeof versions.source_revision !== "string" ||
+    typeof versions.pipeline_revision !== "string" ||
+    typeof versions.inference_profile !== "string"
+  ) {
+    throw new Error(
+      "The protected worker did not return a verified AI restoration receipt.",
+    );
+  }
+  return {
+    engine: "resemble",
+    modelName: "resemble-enhance",
+    modelRepository: versions.model_repository,
+    modelRevision: versions.model_revision,
+    checkpointSha256: versions.model_checkpoint_sha256,
+    sourceRevision: versions.source_revision,
+    pipelineRevision: versions.pipeline_revision,
+    inferenceProfile: versions.inference_profile,
+  };
 }
 
 function waveformValues(analysis: AudioAnalysis) {
@@ -211,6 +282,8 @@ export function SignalLab() {
   >("running");
   const [upgradeEvents, setUpgradeEvents] = useState<UpgradeEvent[]>([]);
   const [upgradeError, setUpgradeError] = useState<string>();
+  const [upgradeProvenance, setUpgradeProvenance] =
+    useState<UpgradeProvenance | null>(null);
 
   const appShellRef = useRef<HTMLDivElement>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -219,11 +292,16 @@ export function SignalLab() {
   const animationRef = useRef<number | null>(null);
   const captureSequenceRef = useRef(0);
   const captureAbortRef = useRef<AbortController | null>(null);
+  const upgradeSequenceRef = useRef(0);
+  const upgradeAbortRef = useRef<AbortController | null>(null);
+  const upgradeIdRef = useRef<string | null>(null);
   const activeStreamRef = useRef<MediaStream | null>(null);
   const playbackSelectionRef = useRef<"original" | "enhanced">("enhanced");
   const enhancedRef = useRef<CaptureRecord | null>(null);
   const mountedRef = useRef(true);
-  const previousStageRef = useRef<ExperimentStage>(stage);
+  const previousSceneRef = useRef(
+    stage === "Upgrade" ? `${stage}-${upgradeState}` : stage,
+  );
   const previousCapturePhaseRef = useRef<CapturePhase>(capturePhase);
   const objectUrlsRef = useRef(new Set<string>());
 
@@ -261,16 +339,20 @@ export function SignalLab() {
     appShellRef.current?.setAttribute("data-hydrated", "true");
   }, []);
 
+  const sceneKey = stage === "Upgrade" ? `${stage}-${upgradeState}` : stage;
+
   useEffect(() => {
-    if (previousStageRef.current === stage) return;
-    previousStageRef.current = stage;
+    if (previousSceneRef.current === sceneKey) return;
+    previousSceneRef.current = sceneKey;
     const frame = window.requestAnimationFrame(() => {
-      const heading =
-        appShellRef.current?.querySelector<HTMLElement>("main .stage h1");
-      heading?.focus({ preventScroll: true });
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+      appShellRef.current
+        ?.querySelector<HTMLElement>("main .stage h1, main .fault-inline h1")
+        ?.focus({ preventScroll: true });
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [stage]);
+  }, [sceneKey]);
 
   useEffect(() => {
     const previousPhase = previousCapturePhaseRef.current;
@@ -368,9 +450,16 @@ export function SignalLab() {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
+      const activeUpgradeId = upgradeIdRef.current;
+      if (SIGNAL_MODE === "live" && activeUpgradeId) {
+        requestRemoteUpgradeCancellation(activeUpgradeId);
+      }
+      upgradeIdRef.current = null;
       stopPlayback();
       captureSequenceRef.current += 1;
+      upgradeSequenceRef.current += 1;
       captureAbortRef.current?.abort();
+      upgradeAbortRef.current?.abort();
       if (activeStreamRef.current) stopMediaStream(activeStreamRef.current);
       releaseAllRecords();
       void audioContextRef.current?.close();
@@ -391,39 +480,45 @@ export function SignalLab() {
     }
   }, [refreshDevices]);
 
-  const createSession = useCallback(async () => {
-    if (sessionId) return sessionId;
-    const byId = (id: string) =>
-      devices.find((device) => device.deviceId === id)?.label ??
-      "Browser audio input";
-    const response = await fetch("/api/sessions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        referenceId: GUIDED_READING_ID,
-        devices: {
-          inputA: { deviceId: inputA, label: byId(inputA) },
-          inputB: { deviceId: inputB, label: byId(inputB) },
-          requested: {
-            channelCount: 1,
-            sampleRate: 48_000,
-            echoCancellation: false,
-            noiseSuppression: false,
-            autoGainControl: false,
+  const createSession = useCallback(
+    async (signal?: AbortSignal) => {
+      signal?.throwIfAborted();
+      if (sessionId) return sessionId;
+      const byId = (id: string) =>
+        devices.find((device) => device.deviceId === id)?.label ??
+        "Browser audio input";
+      const response = await fetch("/api/sessions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          referenceId: GUIDED_READING_ID,
+          devices: {
+            inputA: { deviceId: inputA, label: byId(inputA) },
+            inputB: { deviceId: inputB, label: byId(inputB) },
+            requested: {
+              channelCount: 1,
+              sampleRate: 48_000,
+              echoCancellation: false,
+              noiseSuppression: false,
+              autoGainControl: false,
+            },
+            reported: {},
           },
-          reported: {},
-        },
-      }),
-    });
-    if (!response.ok)
-      throw new Error(
-        (await response.json().catch(() => null))?.error?.message ??
-          "The experiment session could not be started.",
-      );
-    const payload = (await response.json()) as { sessionId: string };
-    setSessionId(payload.sessionId);
-    return payload.sessionId;
-  }, [devices, inputA, inputB, sessionId]);
+        }),
+        ...(signal ? { signal } : {}),
+      });
+      if (!response.ok)
+        throw new Error(
+          (await response.json().catch(() => null))?.error?.message ??
+            "The experiment session could not be started.",
+        );
+      const payload = (await response.json()) as { sessionId: string };
+      signal?.throwIfAborted();
+      setSessionId(payload.sessionId);
+      return payload.sessionId;
+    },
+    [devices, inputA, inputB, sessionId],
+  );
 
   const beginInputA = useCallback(async () => {
     setCaptureError(undefined);
@@ -709,8 +804,10 @@ export function SignalLab() {
   );
 
   const uploadCapture = useCallback(
-    async (session: string, record: CaptureRecord) => {
+    async (session: string, record: CaptureRecord, signal?: AbortSignal) => {
+      signal?.throwIfAborted();
       const captureSha256 = await sha256(record.blob);
+      signal?.throwIfAborted();
       const authorize = await fetch("/api/sessions/uploads/authorize", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -720,12 +817,14 @@ export function SignalLab() {
           bytes: record.blob.size,
           sha256: captureSha256,
         }),
+        ...(signal ? { signal } : {}),
       });
       if (!authorize.ok)
         throw new Error(
           (await authorize.json().catch(() => null))?.error?.message ??
             "Private upload could not be authorized.",
         );
+      signal?.throwIfAborted();
       const grant = (await authorize.json()) as {
         committed: boolean;
         pathname: string;
@@ -739,9 +838,11 @@ export function SignalLab() {
         method: "PUT",
         headers: grant.headers,
         body: record.blob,
+        ...(signal ? { signal } : {}),
       });
       if (!uploaded.ok && uploaded.status !== 409)
         throw new Error("The capture could not be placed in private storage.");
+      signal?.throwIfAborted();
       const committed = await fetch("/api/sessions/uploads/commit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -759,64 +860,93 @@ export function SignalLab() {
           codec: "pcm_s16le",
           metrics: record.metrics,
         }),
+        ...(signal ? { signal } : {}),
       });
       if (!committed.ok)
         throw new Error(
           (await committed.json().catch(() => null))?.error?.message ??
             "The capture upload could not be verified.",
         );
+      signal?.throwIfAborted();
     },
     [],
   );
 
-  const runDemoUpgrade = useCallback(async () => {
-    const detail = [
-      "The capture is ready in this browser.",
-      "Measuring level, peaks, and spectral balance.",
-      "Checking steady noise and peak control.",
-      "Applying the local, non-AI preview route.",
-      "Using restrained EQ and gentle dynamics.",
-      "Comparing preview against the original.",
-      "Recording every local processing step.",
-    ];
-    const names = [
-      "Receiving capture",
-      "Inspecting signal",
-      "Detecting noise and compression",
-      "Restoring detail",
-      "Polishing dynamics",
-      "Generating difference map",
-      "Preparing report",
-    ];
-    for (let index = 0; index < names.length; index += 1) {
-      await new Promise((resolve) =>
-        window.setTimeout(resolve, index === 0 ? 180 : 520),
-      );
-      setUpgradeEvents((current) => [
-        ...current.map((event) =>
-          event.status === "active"
-            ? { ...event, status: "complete" as const }
-            : event,
-        ),
-        {
-          sequence: index,
-          stage: names[index] ?? "Preparing report",
-          detail: detail[index] ?? "",
-          status: index === names.length - 1 ? "complete" : "active",
-          timestamp: new Date().toLocaleTimeString([], {
-            hour: "2-digit",
-            minute: "2-digit",
-            second: "2-digit",
-          }),
-        },
-      ]);
-    }
-    setUpgradeState("complete");
-  }, []);
+  const runDemoUpgrade = useCallback(
+    async (signal: AbortSignal, isCurrent: () => boolean) => {
+      const detail = [
+        "The capture is ready in this browser.",
+        "Measuring level, peaks, and spectral balance.",
+        "Checking steady noise and peak control.",
+        "Applying the local, non-AI preview route.",
+        "Using restrained EQ and gentle dynamics.",
+        "Comparing preview against the original.",
+        "Recording every local processing step.",
+      ];
+      const names = [
+        "Receiving capture",
+        "Inspecting signal",
+        "Detecting noise and compression",
+        "Restoring detail",
+        "Polishing dynamics",
+        "Generating difference map",
+        "Preparing report",
+      ];
+      for (let index = 0; index < names.length; index += 1) {
+        await abortableDelay(index === 0 ? 180 : 520, signal);
+        signal.throwIfAborted();
+        if (!isCurrent())
+          throw new DOMException("Upgrade cancelled.", "AbortError");
+        setUpgradeEvents((current) => [
+          ...current.map((event) =>
+            event.status === "active"
+              ? { ...event, status: "complete" as const }
+              : event,
+          ),
+          {
+            sequence: index,
+            stage: names[index] ?? "Preparing report",
+            detail: detail[index] ?? "",
+            status: index === names.length - 1 ? "complete" : "active",
+            timestamp: new Date().toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+              second: "2-digit",
+            }),
+          },
+        ]);
+      }
+      signal.throwIfAborted();
+      if (!isCurrent())
+        throw new DOMException("Upgrade cancelled.", "AbortError");
+      setUpgradeState("complete");
+    },
+    [],
+  );
 
   const consumeUpgradeStream = useCallback(
-    async (eventsUrl: string, upgradeId: string) => {
-      const response = await fetch(eventsUrl, { cache: "no-store" });
+    async (
+      eventsUrl: string,
+      upgradeId: string,
+      abortController: AbortController,
+      upgradeSequence: number,
+    ) => {
+      const assertCurrent = () => {
+        abortController.signal.throwIfAborted();
+        if (
+          !mountedRef.current ||
+          upgradeSequenceRef.current !== upgradeSequence ||
+          upgradeAbortRef.current !== abortController
+        ) {
+          throw new DOMException("Upgrade cancelled.", "AbortError");
+        }
+      };
+      assertCurrent();
+      const response = await fetch(eventsUrl, {
+        cache: "no-store",
+        signal: abortController.signal,
+      });
+      assertCurrent();
       if (!response.ok || !response.body)
         throw new Error("The durable progress stream could not be opened.");
       const reader = response.body
@@ -825,6 +955,7 @@ export function SignalLab() {
       let buffer = "";
       while (true) {
         const chunk = await reader.read();
+        assertCurrent();
         if (chunk.done) break;
         buffer += chunk.value;
         const lines = buffer.split("\n");
@@ -840,20 +971,43 @@ export function SignalLab() {
       }
       const statusResponse = await fetch(`/api/upgrades/${upgradeId}`, {
         cache: "no-store",
+        signal: abortController.signal,
       });
+      assertCurrent();
       const status = (await statusResponse.json()) as {
         state: string;
         resultUrl?: string | null;
+        resultSha256?: string | null;
+        routing?: unknown;
+        resultMetadata?: unknown;
         error?: { message: string } | null;
       };
+      assertCurrent();
       if (status.state !== "completed" || !status.resultUrl)
         throw new Error(
           status.error?.message ?? "The deeper restoration did not finish.",
         );
-      const audioResponse = await fetch(status.resultUrl);
+      const provenance = readUpgradeProvenance(
+        status.routing,
+        status.resultMetadata,
+      );
+      const audioResponse = await fetch(status.resultUrl, {
+        signal: abortController.signal,
+      });
+      assertCurrent();
       const resultBlob = await audioResponse.blob();
+      assertCurrent();
+      if (
+        !status.resultSha256 ||
+        (await sha256(resultBlob)) !== status.resultSha256
+      ) {
+        throw new Error("The enhanced WAV failed its integrity check.");
+      }
+      assertCurrent();
       const { decodeWav } = await import("@/lib/audio");
+      assertCurrent();
       const decoded = await decodeWav(resultBlob);
+      assertCurrent();
       const record = makeRecord(
         "A",
         decoded.samples,
@@ -861,7 +1015,9 @@ export function SignalLab() {
         captureA?.deviceLabel ?? "Input A",
       );
       if (!replaceEnhanced(record)) return;
+      setUpgradeProvenance(provenance);
       setUpgradeState("complete");
+      upgradeIdRef.current = null;
     },
     [captureA?.deviceLabel, replaceEnhanced],
   );
@@ -874,6 +1030,23 @@ export function SignalLab() {
     setUpgradeEvents([]);
     setUpgradeState("running");
     setUpgradeError(undefined);
+    setUpgradeProvenance(null);
+    upgradeIdRef.current = null;
+    upgradeAbortRef.current?.abort();
+    const upgradeSequence = upgradeSequenceRef.current + 1;
+    upgradeSequenceRef.current = upgradeSequence;
+    const abortController = new AbortController();
+    upgradeAbortRef.current = abortController;
+    const isCurrentUpgrade = () =>
+      mountedRef.current &&
+      upgradeSequenceRef.current === upgradeSequence &&
+      upgradeAbortRef.current === abortController &&
+      !abortController.signal.aborted;
+    const assertCurrentUpgrade = () => {
+      abortController.signal.throwIfAborted();
+      if (!isCurrentUpgrade())
+        throw new DOMException("Upgrade cancelled.", "AbortError");
+    };
     const preview = createDspPreview(captureA.samples, captureA.sampleRate);
     const previewRecord = makeRecord(
       "A",
@@ -881,35 +1054,74 @@ export function SignalLab() {
       preview.sampleRate,
       captureA.deviceLabel,
     );
-    if (!replaceEnhanced(previewRecord)) return;
-    if (SIGNAL_MODE === "demo") {
-      void runDemoUpgrade();
+    if (!replaceEnhanced(previewRecord)) {
+      abortController.abort();
+      if (upgradeAbortRef.current === abortController)
+        upgradeAbortRef.current = null;
       return;
     }
+    let requestedUpgradeId: string | null = null;
     try {
-      const activeSession = sessionId ?? (await createSession());
+      if (SIGNAL_MODE === "demo") {
+        await runDemoUpgrade(abortController.signal, isCurrentUpgrade);
+        return;
+      }
+      const activeSession =
+        sessionId ?? (await createSession(abortController.signal));
+      assertCurrentUpgrade();
       await Promise.all([
-        uploadCapture(activeSession, captureA),
-        uploadCapture(activeSession, captureB),
+        uploadCapture(activeSession, captureA, abortController.signal),
+        uploadCapture(activeSession, captureB, abortController.signal),
       ]);
+      assertCurrentUpgrade();
+      requestedUpgradeId = crypto.randomUUID();
+      upgradeIdRef.current = requestedUpgradeId;
       const response = await fetch("/api/upgrades", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId: activeSession }),
+        body: JSON.stringify({
+          sessionId: activeSession,
+          upgradeId: requestedUpgradeId,
+        }),
+        // This bounded request deliberately outlives a UI reset. If the server
+        // accepted the job, its client-known ID can still be cancelled.
+        signal: AbortSignal.timeout(UPGRADE_START_TIMEOUT_MS),
       });
       const payload = (await response.json()) as {
         upgradeId?: string;
         eventsUrl?: string;
         error?: { message?: string };
       };
-      if (!response.ok || !payload.upgradeId || !payload.eventsUrl)
+      if (!isCurrentUpgrade()) {
+        requestRemoteUpgradeCancellation(requestedUpgradeId);
+        throw new DOMException("Upgrade cancelled.", "AbortError");
+      }
+      if (
+        !response.ok ||
+        payload.upgradeId !== requestedUpgradeId ||
+        !payload.eventsUrl
+      )
         throw new Error(
           payload.error?.message ?? "The upgrade could not be started.",
         );
-      await consumeUpgradeStream(payload.eventsUrl, payload.upgradeId);
+      abortController.signal.throwIfAborted();
+      await consumeUpgradeStream(
+        payload.eventsUrl,
+        requestedUpgradeId,
+        abortController,
+        upgradeSequence,
+      );
     } catch (error) {
+      const activeUpgradeId = requestedUpgradeId ?? upgradeIdRef.current;
+      if (SIGNAL_MODE === "live" && activeUpgradeId)
+        requestRemoteUpgradeCancellation(activeUpgradeId);
+      if (upgradeIdRef.current === activeUpgradeId) upgradeIdRef.current = null;
+      if (isAbortError(error) || !isCurrentUpgrade()) return;
       setUpgradeError(displayError(error));
       setUpgradeState("failed");
+    } finally {
+      if (upgradeAbortRef.current === abortController)
+        upgradeAbortRef.current = null;
     }
   }, [
     captureA,
@@ -924,6 +1136,10 @@ export function SignalLab() {
   ]);
 
   const resetExperiment = useCallback(() => {
+    upgradeSequenceRef.current += 1;
+    upgradeAbortRef.current?.abort();
+    upgradeAbortRef.current = null;
+    upgradeIdRef.current = null;
     stopPlayback();
     releaseAllRecords();
     enhancedRef.current = null;
@@ -937,9 +1153,19 @@ export function SignalLab() {
     setCapturePhase("idle");
     setCaptureError(undefined);
     setUpgradeEvents([]);
+    setUpgradeProvenance(null);
     setCurrentTime(0);
     setStage("Reference");
   }, [releaseAllRecords, stopPlayback]);
+
+  const cancelUpgrade = useCallback(() => {
+    const upgradeId = upgradeIdRef.current;
+    upgradeAbortRef.current?.abort();
+    if (SIGNAL_MODE === "live" && upgradeId) {
+      requestRemoteUpgradeCancellation(upgradeId);
+    }
+    resetExperiment();
+  }, [resetExperiment]);
 
   const repeatCaptures = useCallback(() => {
     stopPlayback();
@@ -992,6 +1218,22 @@ export function SignalLab() {
     );
   }, [captureA, enhanced, playRecord, playing, stopPlayback]);
 
+  const alternateUpgradeComparison = useCallback(() => {
+    if (!captureA || !enhanced) return;
+    const next =
+      playing && activePlaybackTarget === "original"
+        ? "enhanced"
+        : playing && activePlaybackTarget === "enhanced"
+          ? "original"
+          : playbackSelectionRef.current;
+    playbackSelectionRef.current =
+      next === "original" ? "enhanced" : "original";
+    void playRecord(
+      next === "original" ? captureA : enhanced,
+      next === "original" ? "original" : "enhanced",
+    );
+  }, [activePlaybackTarget, captureA, enhanced, playRecord, playing]);
+
   const selectedLabel = (slot: "A" | "B") => {
     const id = slot === "A" ? inputA : inputB;
     return (
@@ -1000,136 +1242,162 @@ export function SignalLab() {
   };
 
   return (
-    <div ref={appShellRef} className="app-shell">
-      <header className="site-header">
-        <Link
-          className="brand-button"
-          href="/"
-          aria-label="Signal Enhancer home"
+    <LazyMotion features={domAnimation} strict>
+      <MotionConfig reducedMotion="user">
+        <div
+          ref={appShellRef}
+          className="app-shell"
+          style={{ isolation: "isolate", position: "relative" }}
         >
-          <SignalMark />
-          <span>Signal Enhancer</span>
-        </Link>
-        <button
-          className="about-button"
-          type="button"
-          aria-label="About Signal Enhancer"
-          onClick={(event) => {
-            event.currentTarget.focus();
-            setAboutOpen(true);
-          }}
-        >
-          <span>About</span>
-          <Menu size={22} />
-        </button>
-      </header>
-      <main>
-        <ExperimentStepper stage={stage} />
-        {stage === "Reference" ? (
-          <ReferenceStage
-            devices={devices}
-            inputA={inputA}
-            inputB={inputB}
-            confirmedA={confirmedA}
-            confirmedB={confirmedB}
-            permissionState={permissionState}
-            permissionMessage={permissionMessage}
-            onInputA={(id) => {
-              setInputA(id);
-              setConfirmedA(false);
-            }}
-            onInputB={(id) => {
-              setInputB(id);
-              setConfirmedB(false);
-            }}
-            onConfirmA={() => setConfirmedA(true)}
-            onConfirmB={() => setConfirmedB(true)}
-            onRequestPermission={() => void requestPermission()}
-            onBegin={() => void beginInputA()}
+          <LabAtmosphere stage={stage} />
+          <header className="site-header">
+            <Link
+              className="brand-button"
+              href="/"
+              aria-label="Signal Enhancer home"
+            >
+              <SignalMark />
+              <span>Signal Enhancer</span>
+            </Link>
+            <button
+              className="about-button"
+              type="button"
+              aria-label="About Signal Enhancer"
+              onClick={(event) => {
+                event.currentTarget.focus();
+                setAboutOpen(true);
+              }}
+            >
+              <span>About</span>
+              <Menu size={22} />
+            </button>
+          </header>
+          <main>
+            <ExperimentStepper stage={stage} />
+            <AnimatePresence initial={false} mode="wait">
+              <m.div
+                key={sceneKey}
+                initial="enter"
+                animate="active"
+                exit="exit"
+                variants={LAB_STAGE_VARIANTS}
+                style={{ width: "100%" }}
+              >
+                {stage === "Reference" ? (
+                  <ReferenceStage
+                    devices={devices}
+                    inputA={inputA}
+                    inputB={inputB}
+                    confirmedA={confirmedA}
+                    confirmedB={confirmedB}
+                    permissionState={permissionState}
+                    permissionMessage={permissionMessage}
+                    onInputA={(id) => {
+                      setInputA(id);
+                      setConfirmedA(false);
+                    }}
+                    onInputB={(id) => {
+                      setInputB(id);
+                      setConfirmedB(false);
+                    }}
+                    onConfirmA={() => setConfirmedA(true)}
+                    onConfirmB={() => setConfirmedB(true)}
+                    onRequestPermission={() => void requestPermission()}
+                    onBegin={() => void beginInputA()}
+                  />
+                ) : null}
+                {stage === "Input A" ? (
+                  <CaptureStage
+                    slot="A"
+                    deviceLabel={selectedLabel("A")}
+                    phase={capturePhase}
+                    progress={captureProgress}
+                    elapsedSeconds={captureElapsed}
+                    countdownSeconds={captureCountdown}
+                    error={captureError}
+                    reviewPlaying={
+                      playing && activePlaybackTarget === "capture-A"
+                    }
+                    onStart={() => void startCapture("A")}
+                    onCancel={cancelCapture}
+                    onContinue={() => continueAfterCapture("A")}
+                    onRetake={() => retakeCapture("A")}
+                    onToggleReview={() => toggleCaptureReview("A")}
+                  />
+                ) : null}
+                {stage === "Input B" ? (
+                  <CaptureStage
+                    slot="B"
+                    deviceLabel={selectedLabel("B")}
+                    phase={capturePhase}
+                    progress={captureProgress}
+                    elapsedSeconds={captureElapsed}
+                    countdownSeconds={captureCountdown}
+                    error={captureError}
+                    reviewPlaying={
+                      playing && activePlaybackTarget === "capture-B"
+                    }
+                    onStart={() => void startCapture("B")}
+                    onCancel={cancelCapture}
+                    onContinue={() => continueAfterCapture("B")}
+                    onRetake={() => retakeCapture("B")}
+                    onToggleReview={() => toggleCaptureReview("B")}
+                  />
+                ) : null}
+                {stage === "Reveal" && captureA && captureB ? (
+                  <RevealStage
+                    captureA={captureA}
+                    captureB={captureB}
+                    playing={playing}
+                    activeTrack={
+                      activePlaybackTarget === "capture-A"
+                        ? "A"
+                        : activePlaybackTarget === "capture-B"
+                          ? "B"
+                          : null
+                    }
+                    currentTime={currentTime}
+                    signalMode={SIGNAL_MODE}
+                    onSelect={handleRevealSelect}
+                    onPlay={handleRevealPlay}
+                    onSeek={seekCapture}
+                    onRepeat={repeatCaptures}
+                    onUpgrade={() => void beginUpgrade()}
+                  />
+                ) : null}
+                {stage === "Upgrade" && captureA ? (
+                  <UpgradeStage
+                    source={captureA}
+                    enhanced={enhanced}
+                    events={upgradeEvents}
+                    state={upgradeState}
+                    mode={SIGNAL_MODE}
+                    provenance={upgradeProvenance}
+                    playing={playing}
+                    currentTime={currentTime}
+                    error={upgradeError}
+                    onAlternatePlayback={alternateUpgradeComparison}
+                    onTogglePlayback={playUpgradeComparison}
+                    onSeek={seekCapture}
+                    onCancel={cancelUpgrade}
+                    onReset={resetExperiment}
+                  />
+                ) : null}
+              </m.div>
+            </AnimatePresence>
+          </main>
+          <footer className="site-footer">
+            <span>Input Chain Fingerprint · v1</span>
+            <span>Private by default · Evidence without ranking</span>
+          </footer>
+          <AboutDialog
+            open={aboutOpen}
+            demoAvailable={SIGNAL_MODE === "demo"}
+            onClose={() => setAboutOpen(false)}
+            onLoadDemo={loadDemo}
           />
-        ) : null}
-        {stage === "Input A" ? (
-          <CaptureStage
-            slot="A"
-            deviceLabel={selectedLabel("A")}
-            phase={capturePhase}
-            progress={captureProgress}
-            elapsedSeconds={captureElapsed}
-            countdownSeconds={captureCountdown}
-            error={captureError}
-            reviewPlaying={playing && activePlaybackTarget === "capture-A"}
-            onStart={() => void startCapture("A")}
-            onCancel={cancelCapture}
-            onContinue={() => continueAfterCapture("A")}
-            onRetake={() => retakeCapture("A")}
-            onToggleReview={() => toggleCaptureReview("A")}
-          />
-        ) : null}
-        {stage === "Input B" ? (
-          <CaptureStage
-            slot="B"
-            deviceLabel={selectedLabel("B")}
-            phase={capturePhase}
-            progress={captureProgress}
-            elapsedSeconds={captureElapsed}
-            countdownSeconds={captureCountdown}
-            error={captureError}
-            reviewPlaying={playing && activePlaybackTarget === "capture-B"}
-            onStart={() => void startCapture("B")}
-            onCancel={cancelCapture}
-            onContinue={() => continueAfterCapture("B")}
-            onRetake={() => retakeCapture("B")}
-            onToggleReview={() => toggleCaptureReview("B")}
-          />
-        ) : null}
-        {stage === "Reveal" && captureA && captureB ? (
-          <RevealStage
-            captureA={captureA}
-            captureB={captureB}
-            playing={playing}
-            activeTrack={
-              activePlaybackTarget === "capture-A"
-                ? "A"
-                : activePlaybackTarget === "capture-B"
-                  ? "B"
-                  : null
-            }
-            currentTime={currentTime}
-            signalMode={SIGNAL_MODE}
-            onSelect={handleRevealSelect}
-            onPlay={handleRevealPlay}
-            onSeek={seekCapture}
-            onRepeat={repeatCaptures}
-            onUpgrade={() => void beginUpgrade()}
-          />
-        ) : null}
-        {stage === "Upgrade" && captureA ? (
-          <UpgradeStage
-            source={captureA}
-            enhanced={enhanced}
-            events={upgradeEvents}
-            state={upgradeState}
-            mode={SIGNAL_MODE}
-            playing={playing}
-            currentTime={currentTime}
-            error={upgradeError}
-            onTogglePlayback={playUpgradeComparison}
-            onSeek={seekCapture}
-            onCancel={resetExperiment}
-            onReset={resetExperiment}
-          />
-        ) : null}
-      </main>
-      <footer className="site-footer">
-        <span>Input Chain Fingerprint · v1</span>
-        <span>Private by default · Evidence without ranking</span>
-      </footer>
-      <AboutDialog
-        open={aboutOpen}
-        demoAvailable={SIGNAL_MODE === "demo"}
-        onClose={() => setAboutOpen(false)}
-        onLoadDemo={loadDemo}
-      />
-    </div>
+        </div>
+      </MotionConfig>
+    </LazyMotion>
   );
 }

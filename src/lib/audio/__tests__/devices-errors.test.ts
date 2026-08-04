@@ -69,7 +69,7 @@ describe("device discovery and permission contracts", () => {
     expect(inputs[0]).toMatchObject({
       deviceId: "a",
       reportedLabel: "",
-      displayLabel: "Audio input 1 (browser label unavailable)",
+      displayLabel: "Audio input 1 · browser unnamed",
       labelAvailable: false,
     });
     expect(inputs[1]).toMatchObject({

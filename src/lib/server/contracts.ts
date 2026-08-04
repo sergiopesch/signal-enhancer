@@ -59,6 +59,7 @@ export const commitCaptureSchema = z
 export const startUpgradeSchema = z
   .object({
     sessionId: z.string().uuid(),
+    upgradeId: z.string().uuid(),
   })
   .strict();
 
@@ -111,6 +112,30 @@ const jsonArtifactReceiptSchema = artifactReceiptSchema.extend({
   content_type: z.literal("application/json"),
 });
 
+export const workerVersionSchema = z
+  .object({
+    api_schema: z.literal("1"),
+    build_revision: z.string().regex(/^[a-f0-9]{40}$/),
+    pipeline_revision: z.literal("signal-enhancer-audio/1.0.0"),
+    dsp_revision: z.literal("restrained-dsp/1.0.0"),
+    model_name: z.literal("resemble-enhance"),
+    model_repository: z.literal("ResembleAI/resemble-enhance"),
+    model_revision: z.literal("4e3510ce4a8391159f665903544c5150bee7b2cb"),
+    model_checkpoint_sha256: z.literal(
+      "f9d035f318de3e6d919bc70cf7ad7d32b4fe92ec5cbe0b30029a27f5db07d9d6",
+    ),
+    source_repository: z.literal(
+      "https://github.com/resemble-ai/resemble-enhance",
+    ),
+    source_revision: z.literal("8e978149bfe8abab3eb77d965d579a111afdb0ff"),
+    inference_profile: z.literal(
+      "enhancer-stage2:nfe=32:solver=midpoint:lambd=0.35:tau=0.45",
+    ),
+  })
+  .strict();
+
+export type WorkerVersion = z.infer<typeof workerVersionSchema>;
+
 export const workerResultSchema = z
   .object({
     schema_version: z.literal("1"),
@@ -119,10 +144,10 @@ export const workerResultSchema = z
     source: z.literal("A"),
     routing: z
       .object({
-        requested_engine: z.enum(["dsp", "resemble"]),
-        used_engine: z.enum(["dsp", "resemble"]),
-        outcome: z.enum(["enhanced", "dsp_fallback"]),
-        fallback_code: z.enum(["model_unavailable"]).nullable(),
+        requested_engine: z.literal("resemble"),
+        used_engine: z.literal("resemble"),
+        outcome: z.literal("enhanced"),
+        fallback_code: z.null(),
       })
       .strict(),
     before: captureAnalysisSchema,
@@ -135,15 +160,6 @@ export const workerResultSchema = z
         report_json: jsonArtifactReceiptSchema,
       })
       .strict(),
-    versions: z
-      .object({
-        api_schema: z.literal("1"),
-        build_revision: z.string(),
-        pipeline_revision: z.string(),
-        dsp_revision: z.string(),
-        model_name: z.enum(["none", "resemble-enhance"]),
-        model_revision: z.string().nullable(),
-      })
-      .strict(),
+    versions: workerVersionSchema,
   })
   .strict();

@@ -1,4 +1,5 @@
 .shell {
+  --home-gutter: clamp(28px, 3.2vw, 52px);
   background: var(--canvas);
   color: var(--ink);
   display: grid;
@@ -9,347 +10,515 @@
 
 .header {
   align-items: center;
-  animation: settle-in 520ms 40ms cubic-bezier(0.2, 0.72, 0.2, 1) both;
-  border-bottom: 1px solid var(--rule-soft);
+  animation: header-in 560ms 60ms cubic-bezier(0.2, 0.72, 0.2, 1) both;
+  border-bottom: 1px solid rgba(72, 72, 66, 0.56);
   display: flex;
-  height: 84px;
-  padding-inline: clamp(28px, 3vw, 48px);
+  height: 86px;
+  justify-content: space-between;
+  margin-inline: var(--home-gutter);
+  position: relative;
+  z-index: 10;
 }
 
 .brand {
   align-items: center;
-  color: var(--ink);
+  color: var(--paper-soft);
   display: inline-flex;
   font-family: var(--font-display);
-  font-size: clamp(1.55rem, 2.2vw, 2rem);
-  font-weight: 430;
+  font-size: clamp(1.55rem, 2.1vw, 2.15rem);
+  font-weight: 410;
   gap: 18px;
-  letter-spacing: -0.035em;
+  letter-spacing: -0.04em;
   min-height: 48px;
   text-decoration: none;
 }
 
 .brand :global(.signal-mark) {
-  width: 82px;
+  color: var(--paper-soft);
+  width: 66px;
+}
+
+.brand :global(.signal-mark path) {
+  stroke-width: 1.15;
+}
+
+.brand :global(.signal-mark-trace-a),
+.brand :global(.signal-mark-trace-b) {
+  opacity: 0.9;
+  stroke: var(--paper-soft);
+}
+
+.brand :global(.signal-mark-enhancer) {
+  opacity: 0.42;
+  stroke: var(--paper-soft);
+}
+
+.brandDivider {
+  background: var(--graphite, #484842);
+  height: 44px;
+  margin-left: -2px;
+  width: 1px;
+}
+
+.calibrationGlyph {
+  height: 50px;
+  opacity: 0.78;
+  position: relative;
+  width: 50px;
+}
+
+.calibrationGlyph::before,
+.calibrationGlyph::after {
+  border-left: 1px solid var(--paper-soft);
+  border-right: 1px solid var(--paper-soft);
+  content: "";
+  inset: 2px 13px;
+  position: absolute;
+}
+
+.calibrationGlyph::after {
+  inset: 13px 2px;
+  transform: rotate(90deg);
+}
+
+.calibrationGlyph span:first-child,
+.calibrationGlyph span:nth-child(2) {
+  background: var(--paper-soft);
+  height: 1px;
+  left: 4px;
+  position: absolute;
+  right: 4px;
+  top: 50%;
+}
+
+.calibrationGlyph span:nth-child(2) {
+  bottom: 4px;
+  left: 50%;
+  right: auto;
+  top: 4px;
+  width: 1px;
+}
+
+.calibrationGlyph span:last-child {
+  background: var(--canvas);
+  border: 1px solid var(--paper-soft);
+  border-radius: 50%;
+  height: 9px;
+  left: 50%;
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 9px;
 }
 
 .main {
-  display: grid;
-  min-height: calc(100svh - 84px);
-  padding: clamp(30px, 4.6vw, 72px) clamp(28px, 3vw, 48px);
+  min-height: calc(100svh - 86px);
+  padding: 0;
 }
 
 .hero {
-  align-items: center;
-  display: grid;
-  gap: clamp(60px, 6vw, 104px);
-  grid-template-columns: minmax(470px, 0.86fr) minmax(520px, 1.14fr);
-  margin: auto;
-  max-width: 1500px;
-  width: 100%;
+  min-height: calc(100svh - 86px);
+  overflow: hidden;
+  position: relative;
+}
+
+.sceneFrame {
+  inset: 0;
+  position: absolute;
 }
 
 .copy {
-  max-width: 620px;
-}
-
-.eyebrow {
-  animation: settle-in 540ms 180ms cubic-bezier(0.2, 0.72, 0.2, 1) both;
-  color: var(--ink-faint);
-  font-family: var(--font-measure);
-  font-size: 11px;
-  letter-spacing: 0.1em;
-  margin: 0 0 28px;
-  text-transform: uppercase;
+  left: var(--home-gutter);
+  max-width: 670px;
+  position: absolute;
+  top: clamp(54px, 9svh, 116px);
+  width: min(43.5vw, 670px);
+  z-index: 4;
 }
 
 .title {
   font-family: var(--font-display);
-  font-size: clamp(4.4rem, 5.35vw, 6.2rem);
-  font-weight: 410;
+  font-size: clamp(4rem, 6vw, 5.75rem);
+  font-weight: 390;
   letter-spacing: -0.055em;
-  line-height: 0.88;
+  line-height: 0.91;
   margin: 0;
   text-wrap: balance;
 }
 
 .title span {
-  animation: settle-in 620ms cubic-bezier(0.2, 0.72, 0.2, 1) both;
+  animation: title-in 760ms cubic-bezier(0.16, 0.76, 0.24, 1) both;
   display: block;
 }
 
 .title span:first-child {
-  animation-delay: 250ms;
+  animation-delay: 170ms;
 }
 
 .title span:last-child {
-  animation-delay: 330ms;
+  animation-delay: 260ms;
 }
 
 .premise {
-  animation: settle-in 560ms 420ms cubic-bezier(0.2, 0.72, 0.2, 1) both;
+  animation: copy-in 580ms 410ms cubic-bezier(0.2, 0.72, 0.2, 1) both;
   color: var(--ink-muted);
-  font-size: clamp(1rem, 1.3vw, 1.16rem);
+  font-size: clamp(1rem, 1.28vw, 1.18rem);
+  letter-spacing: 0.005em;
   line-height: 1.55;
-  margin: 34px 0 0;
-  max-width: 40ch;
+  margin: clamp(24px, 3vh, 34px) 0 0;
+  max-width: 42ch;
+  text-wrap: pretty;
 }
 
 .actionGroup {
-  animation: settle-in 560ms 500ms cubic-bezier(0.2, 0.72, 0.2, 1) both;
+  animation: copy-in 580ms 500ms cubic-bezier(0.2, 0.72, 0.2, 1) both;
   align-items: flex-start;
   display: flex;
   flex-direction: column;
-  margin-top: 40px;
+  margin-top: clamp(28px, 4vh, 44px);
 }
 
 .primaryAction {
   align-items: center;
-  background: var(--paper-soft);
-  border: 1px solid var(--paper-soft);
-  border-radius: 2px;
-  color: var(--paper-ink);
+  background:
+    linear-gradient(90deg, rgba(242, 238, 229, 0.06), transparent 42%),
+    var(--canvas);
+  border: 1px solid rgba(242, 238, 229, 0.8);
+  clip-path: polygon(
+    0 9px,
+    9px 0,
+    calc(100% - 9px) 0,
+    100% 9px,
+    100% calc(100% - 9px),
+    calc(100% - 9px) 100%,
+    9px 100%,
+    0 calc(100% - 9px)
+  );
+  color: var(--paper-soft);
   display: inline-flex;
   font-family: var(--font-measure);
-  font-size: 13px;
-  font-weight: 520;
-  gap: 28px;
-  justify-content: space-between;
-  min-height: 54px;
-  min-width: 250px;
-  padding: 0 18px;
+  font-size: 12px;
+  font-weight: 500;
+  gap: 22px;
+  justify-content: flex-start;
+  letter-spacing: 0.14em;
+  min-height: 62px;
+  min-width: min(100%, 390px);
+  padding: 0 26px;
+  position: relative;
   text-decoration: none;
+  text-transform: uppercase;
   transition:
     background-color 180ms ease,
-    border-color 180ms ease;
+    border-color 180ms ease,
+    color 180ms ease,
+    transform 180ms ease;
+}
+
+.primaryAction::before,
+.primaryAction::after {
+  border: solid var(--ink-faint);
+  content: "";
+  height: 5px;
+  pointer-events: none;
+  position: absolute;
+  width: 5px;
+}
+
+.primaryAction::before {
+  border-width: 1px 0 0 1px;
+  left: 5px;
+  top: 5px;
+}
+
+.primaryAction::after {
+  border-width: 0 1px 1px 0;
+  bottom: 5px;
+  right: 5px;
 }
 
 .primaryAction:hover {
-  background: #fffaf0;
-  border-color: #fffaf0;
+  background-color: var(--void-raised, #111210);
+  border-color: var(--paper-soft);
+  color: var(--paper-soft);
+  transform: translateY(-2px);
 }
 
-.actionArrow {
-  display: inline-block;
-  font-family: var(--font-ui);
-  font-size: 20px;
-  line-height: 1;
+.primaryAction:focus-visible {
+  border-color: var(--signal-a);
+  box-shadow: inset 0 0 0 1px var(--signal-a);
+  outline: none;
+}
+
+.primaryAction:active {
+  transform: translateY(0);
+}
+
+.actionGlyph {
+  align-items: center;
+  border-right: 1px solid var(--rule);
+  display: inline-flex;
+  height: 28px;
+  padding-right: 17px;
+}
+
+.actionGlyph svg {
+  height: 27px;
   transition: transform 180ms ease;
+  width: 27px;
 }
 
-.primaryAction:hover .actionArrow,
-.primaryAction:focus-visible .actionArrow {
-  transform: translateX(4px);
+.primaryAction:hover .actionGlyph svg,
+.primaryAction:focus-visible .actionGlyph svg {
+  transform: translateX(3px);
 }
 
 .assurance {
-  color: var(--ink-faint);
-  font-family: var(--font-measure);
-  font-size: 11px;
-  letter-spacing: 0.025em;
-  line-height: 1.5;
-  margin: 15px 0 0;
-}
-
-.signalField {
-  animation: field-in 700ms 140ms cubic-bezier(0.2, 0.72, 0.2, 1) both;
-  align-self: center;
-  border-bottom: 1px solid var(--rule-soft);
-  border-top: 1px solid var(--rule-soft);
-  min-width: 0;
-  padding-block: 16px 12px;
-}
-
-.signalMeta,
-.timeScale {
   align-items: center;
   color: var(--ink-faint);
   display: flex;
   font-family: var(--font-measure);
-  font-size: 9px;
-  justify-content: space-between;
-  letter-spacing: 0.04em;
+  font-size: 11px;
+  gap: 12px;
+  letter-spacing: 0.01em;
+  line-height: 1.5;
+  margin: 17px 0 0;
+}
+
+.assurance svg {
+  flex: 0 0 auto;
+  height: 17px;
+  width: 17px;
+}
+
+.timeline {
+  animation: timeline-in 800ms 660ms cubic-bezier(0.18, 0.76, 0.24, 1) both;
+  bottom: clamp(14px, 2.8vh, 30px);
+  left: var(--home-gutter);
+  position: absolute;
+  right: var(--home-gutter);
+  z-index: 5;
+}
+
+.timelineLabels {
+  align-items: end;
+  color: var(--paper-soft);
+  display: grid;
+  font-family: var(--font-measure);
+  font-size: 11px;
+  grid-template-columns: 1fr 1fr 1fr;
+  letter-spacing: 0.14em;
+  line-height: 1;
+  padding-inline: 2px;
   text-transform: uppercase;
 }
 
-.traceReveal {
-  animation: trace-reveal 900ms 260ms cubic-bezier(0.22, 0.72, 0.18, 1) both;
-  clip-path: inset(0 100% 0 0);
-  overflow: hidden;
-  will-change: clip-path;
+.timelineLabels span:nth-child(2) {
+  color: var(--ink-muted);
+  text-align: center;
 }
 
-.trace {
+.timelineLabels span:last-child {
+  text-align: right;
+}
+
+.timelinePlot {
   display: block;
-  height: clamp(270px, 34vw, 500px);
+  height: 54px;
   overflow: visible;
   width: 100%;
 }
 
-.traceBaseline,
-.referenceTrace,
-.aperture,
-.tick {
+.timelineBaseline,
+.timelineTicks,
+.timelineTraceA,
+.timelineTraceB,
+.timelineNodeA,
+.timelineNodeB,
+.timelineNodeGate {
   fill: none;
-  stroke-linecap: square;
-  stroke-linejoin: miter;
+  stroke-linecap: round;
+  stroke-linejoin: round;
   vector-effect: non-scaling-stroke;
 }
 
-.traceBaseline {
-  stroke: var(--rule-soft);
-  stroke-width: 1;
-}
-
-.referenceTrace {
-  stroke: var(--paper-soft);
-  stroke-width: 1.2;
-}
-
-.aperture {
-  stroke: var(--ink-muted);
-  stroke-width: 1.4;
-}
-
-.tick {
+.timelineBaseline {
   stroke: var(--rule);
   stroke-width: 1;
 }
 
-.timeScale span:nth-child(2) {
+.timelineTicks {
+  stroke: var(--ink-muted);
+  stroke-width: 0.8;
+}
+
+.timelineTraceA {
+  stroke: var(--signal-a);
+  stroke-width: 1.2;
+}
+
+.timelineTraceB {
+  stroke: var(--signal-b);
+  stroke-width: 1.2;
+}
+
+.timelineNodeA {
+  fill: var(--canvas);
+  stroke: var(--signal-a);
+  stroke-width: 1.4;
+}
+
+.timelineNodeB {
+  fill: var(--canvas);
+  stroke: var(--signal-b);
+  stroke-width: 1.4;
+}
+
+.timelineNodeGate {
+  fill: var(--canvas);
+  stroke: var(--ink-faint);
+  stroke-width: 1;
+}
+
+.timelineProtocol {
+  border-top: 1px solid rgba(72, 72, 66, 0.64);
   color: var(--ink-muted);
+  font-family: var(--font-measure);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  line-height: 1;
+  margin: -2px 0 0;
+  padding-top: 15px;
+  text-align: center;
+  text-transform: uppercase;
 }
 
-@keyframes settle-in {
+@keyframes header-in {
   from {
     opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
+    transform: translateY(-8px);
   }
 }
 
-@keyframes field-in {
+@keyframes title-in {
   from {
     opacity: 0;
-    transform: translateX(16px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
+    transform: translateY(18px);
   }
 }
 
-@keyframes trace-reveal {
-  to {
-    clip-path: inset(0 0 0 0);
+@keyframes copy-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
   }
 }
 
-@media (max-width: 1120px) {
+@keyframes timeline-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scaleX(0.97);
+  }
+}
+
+@media (max-width: 1080px) {
   .shell {
-    overflow: auto;
+    --home-gutter: clamp(28px, 3.4vw, 40px);
   }
 
-  .hero {
-    gap: clamp(34px, 4vw, 48px);
-    grid-template-columns: minmax(360px, 0.82fr) minmax(0, 1.18fr);
-    max-width: none;
+  .copy {
+    width: min(47vw, 560px);
   }
 
   .title {
-    font-size: clamp(3.65rem, 6.2vw, 4.45rem);
+    font-size: clamp(3.65rem, 6.15vw, 4.25rem);
   }
 
   .premise {
-    margin-top: 26px;
+    max-width: 36ch;
   }
 
-  .actionGroup {
-    margin-top: 30px;
-  }
-
-  .trace {
-    height: clamp(220px, 29vw, 300px);
+  .primaryAction {
+    min-width: min(100%, 350px);
   }
 }
 
-@media (max-width: 880px) {
-  .hero {
-    gap: 38px;
-    grid-template-columns: 1fr;
-    max-width: 720px;
+@media (max-width: 760px) {
+  .shell {
+    --home-gutter: 20px;
+    min-height: 100svh;
+    overflow: clip;
   }
 
-  .copy {
-    grid-row: 1;
-  }
-
-  .signalField {
-    grid-row: 2;
-  }
-}
-
-@media (max-width: 720px) {
   .header {
-    height: 72px;
-    padding-inline: 20px;
+    height: 70px;
   }
 
   .brand {
-    font-size: 1.35rem;
-    gap: 12px;
+    font-size: 1.45rem;
+    gap: 11px;
   }
 
   .brand :global(.signal-mark) {
-    width: 62px;
+    width: 46px;
   }
 
-  .main {
-    min-height: calc(100svh - 72px);
-    padding: 24px 20px 34px;
+  .brandDivider {
+    height: 30px;
+  }
+
+  .calibrationGlyph {
+    height: 36px;
+    width: 36px;
+  }
+
+  .calibrationGlyph::before {
+    inset: 2px 9px;
+  }
+
+  .calibrationGlyph::after {
+    inset: 9px 2px;
+  }
+
+  .main,
+  .hero {
+    min-height: calc(100svh - 70px);
   }
 
   .hero {
-    gap: 30px;
+    display: flex;
+    flex-direction: column;
+    overflow: clip;
+    padding: 0 var(--home-gutter) 34px;
   }
 
-  .signalField {
-    grid-row: 1;
+  .sceneFrame {
+    height: clamp(245px, 79vw, 420px);
+    left: calc(-1 * var(--home-gutter));
+    right: calc(-1 * var(--home-gutter));
+    top: 0;
   }
 
   .copy {
-    grid-row: 2;
-  }
-
-  .signalField {
-    padding-block: 10px 8px;
-  }
-
-  .signalMeta,
-  .timeScale {
-    font-size: 8px;
-  }
-
-  .trace {
-    height: clamp(160px, 44vw, 220px);
-  }
-
-  .eyebrow {
-    margin-bottom: 17px;
+    left: auto;
+    max-width: 600px;
+    padding-top: clamp(225px, 72vw, 385px);
+    position: relative;
+    top: auto;
+    width: 100%;
+    z-index: 4;
   }
 
   .title {
-    font-size: clamp(3.25rem, 15vw, 4.5rem);
+    font-size: clamp(3.3rem, 16.5vw, 5rem);
     line-height: 0.9;
   }
 
   .premise {
     font-size: 1rem;
+    line-height: 1.52;
     margin-top: 23px;
-    max-width: 34ch;
+    max-width: 37ch;
   }
 
   .actionGroup {
@@ -357,39 +526,130 @@
   }
 
   .primaryAction {
+    font-size: 11px;
+    gap: 16px;
+    min-height: 58px;
     min-width: 0;
+    padding-inline: 20px;
     width: 100%;
+  }
+
+  .actionGlyph {
+    padding-right: 14px;
+  }
+
+  .assurance {
+    align-items: flex-start;
+    font-size: 11px;
+  }
+
+  .timeline {
+    bottom: auto;
+    left: auto;
+    margin-top: 46px;
+    position: relative;
+    right: auto;
+    width: 100%;
+  }
+
+  .timelineLabels,
+  .timelineProtocol {
+    font-size: 11px;
+  }
+
+  .timelineLabels {
+    column-gap: 10px;
+    grid-template-columns: 44px minmax(0, 1fr) 44px;
+    letter-spacing: 0.06em;
+  }
+
+  .timelineLabels span:nth-child(2) {
+    white-space: nowrap;
+  }
+
+  .timelinePlot {
+    height: 50px;
+  }
+
+  .timelineProtocol {
+    letter-spacing: 0.12em;
   }
 }
 
-@media (max-width: 360px) {
-  .main {
-    padding-inline: 16px;
+@media (max-width: 380px) {
+  .shell {
+    --home-gutter: 16px;
   }
 
-  .signalMeta span:first-child {
-    max-width: 210px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+  .brand {
+    font-size: 1.28rem;
+  }
+
+  .brand :global(.signal-mark) {
+    width: 40px;
+  }
+
+  .calibrationGlyph {
+    height: 32px;
+    width: 32px;
+  }
+
+  .title {
+    font-size: clamp(3.08rem, 15.8vw, 3.7rem);
+  }
+
+  .primaryAction {
+    letter-spacing: 0.1em;
+  }
+
+  .timelineLabels span:nth-child(2) {
+    letter-spacing: 0;
+  }
+}
+
+@media (min-width: 761px) and (max-height: 700px) {
+  .copy {
+    top: 38px;
+  }
+
+  .title {
+    font-size: clamp(3.6rem, 5.5vw, 4.75rem);
+  }
+
+  .premise {
+    margin-top: 20px;
+  }
+
+  .actionGroup {
+    margin-top: 24px;
+  }
+
+  .primaryAction {
+    min-height: 54px;
+  }
+
+  .timelinePlot {
+    height: 44px;
+  }
+
+  .timelineProtocol {
+    padding-top: 10px;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .header,
-  .eyebrow,
   .title span,
   .premise,
   .actionGroup,
-  .signalField,
-  .traceReveal {
+  .timeline {
     animation: none;
-    clip-path: none;
     opacity: 1;
     transform: none;
   }
 
-  .actionArrow {
+  .primaryAction,
+  .actionGlyph svg {
     transition: none;
   }
 }
@@ -399,13 +659,15 @@
     min-height: 100dvh;
   }
 
-  .main {
-    min-height: calc(100dvh - 84px);
+  .main,
+  .hero {
+    min-height: calc(100dvh - 86px);
   }
 
-  @media (max-width: 720px) {
-    .main {
-      min-height: calc(100dvh - 72px);
+  @media (max-width: 760px) {
+    .main,
+    .hero {
+      min-height: calc(100dvh - 70px);
     }
   }
 }

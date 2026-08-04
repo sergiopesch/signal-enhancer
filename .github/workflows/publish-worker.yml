@@ -1,0 +1,194 @@
+name: Publish Hugging Face worker
+
+on:
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+  packages: write
+
+concurrency:
+  group: publish-worker-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Build production model image
+    if: github.ref == 'refs/heads/main'
+    environment: production-worker
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Require successful CI for this exact main commit
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          runs_file="$(mktemp)"
+          trap 'rm -f "$runs_file"' EXIT
+          gh api \
+            --method GET \
+            "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs" \
+            -f branch=main \
+            -f event=push \
+            -f head_sha="$GITHUB_SHA" \
+            -f status=completed \
+            -f per_page=100 > "$runs_file"
+          jq --exit-status \
+            --arg sha "$GITHUB_SHA" \
+            'any(.workflow_runs[]; .head_sha == $sha and .conclusion == "success")' \
+            "$runs_file" >/dev/null
+      - name: Validate non-secret endpoint policy
+        run: |
+          python3 -m unittest discover --start-directory deploy --pattern 'test_*.py'
+          python3 deploy/validate_worker_release.py
+      - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: image
+        name: Resolve immutable image name
+        shell: bash
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}/worker" >> "$GITHUB_OUTPUT"
+      - uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+        id: build
+        with:
+          context: worker
+          file: worker/Dockerfile
+          platforms: linux/amd64
+          push: true
+          provenance: mode=max
+          sbom: true
+          build-args: |
+            INSTALL_RESEMBLE=1
+            SIGNAL_BUILD_REVISION=${{ github.sha }}
+          tags: |
+            ${{ steps.image.outputs.name }}:${{ github.sha }}
+      - name: Verify the digest is anonymously pullable
+        shell: bash
+        run: |
+          docker logout ghcr.io
+          docker buildx imagetools inspect "${{ steps.image.outputs.name }}@${{ steps.build.outputs.digest }}"
+      - name: Pull back and validate the published image
+        shell: bash
+        env:
+          PUBLISHED_IMAGE: ${{ steps.image.outputs.name }}@${{ steps.build.outputs.digest }}
+        run: |
+          docker pull --platform linux/amd64 "$PUBLISHED_IMAGE"
+          inspect_file="$(mktemp)"
+          trap 'rm -f "$inspect_file"' EXIT
+          docker image inspect "$PUBLISHED_IMAGE" > "$inspect_file"
+          python3 deploy/validate_worker_release.py \
+            --image-reference "$PUBLISHED_IMAGE" \
+            --inspect-json "$inspect_file" \
+            --expected-build-revision "$GITHUB_SHA"
+      - name: Verify published runtime dependencies
+        shell: bash
+        env:
+          PUBLISHED_IMAGE: ${{ steps.image.outputs.name }}@${{ steps.build.outputs.digest }}
+        run: |
+          docker run --rm --interactive --entrypoint python "$PUBLISHED_IMAGE" - <<'PY'
+          import os
+
+          import deepspeed
+          import gradio
+          import torch
+          import torchaudio
+          import torchvision
+          from resemble_enhance.enhancer import inference
+          from torchaudio.functional import resample
+          from torchaudio.transforms import MelSpectrogram
+
+          assert os.getuid() == 10_001
+          wave = torch.linspace(-0.2, 0.2, 1_600)
+          resampled = resample(wave, 16_000, 44_100)
+          mel = MelSpectrogram(
+              sample_rate=44_100,
+              n_fft=512,
+              hop_length=128,
+              n_mels=32,
+          )(resampled)
+          assert torch.isfinite(mel).all()
+          assert callable(inference.load_enhancer)
+          assert callable(inference.enhance)
+          print(
+              "published image dependency smoke passed:",
+              gradio.__version__,
+              torch.__version__,
+              torchaudio.__version__,
+              torchvision.__version__,
+              deepspeed.__version__,
+          )
+          PY
+      - name: Smoke-test the published worker HTTP health contract
+        shell: bash
+        env:
+          PUBLISHED_IMAGE: ${{ steps.image.outputs.name }}@${{ steps.build.outputs.digest }}
+        run: |
+          worker_id="$(docker run \
+            --detach \
+            --rm \
+            --publish 127.0.0.1::7860 \
+            --env SIGNAL_ENVIRONMENT=development \
+            --env SIGNAL_ENDPOINT_SECRET=release-smoke-not-a-production-secret \
+            --env SIGNAL_ALLOWED_STORAGE_HOSTS=storage.invalid \
+            --env SIGNAL_ENGINE=dsp \
+            "$PUBLISHED_IMAGE")"
+          trap 'docker stop "$worker_id" >/dev/null 2>&1 || true' EXIT
+          host_port="$(docker inspect \
+            --format '{{(index (index .NetworkSettings.Ports "7860/tcp") 0).HostPort}}' \
+            "$worker_id")"
+          ready=0
+          for _ in $(seq 1 30); do
+            if curl --fail --silent "http://127.0.0.1:${host_port}/health" \
+              | python3 -c 'import json, sys; assert json.load(sys.stdin) == {"status": "ready"}'; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          test "$ready" -eq 1
+          docker stop "$worker_id" >/dev/null
+          trap - EXIT
+      - name: Generate published image SBOM
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          image: ${{ steps.image.outputs.name }}@${{ steps.build.outputs.digest }}
+          artifact-name: signal-enhancer-worker-published-${{ github.sha }}.spdx.json
+          output-file: published-worker-image.spdx.json
+          format: spdx-json
+          upload-artifact: true
+          upload-artifact-retention: 90
+          upload-release-assets: false
+      - name: Verify production packages are represented in the published SBOM
+        run: |
+          python3 - <<'PY'
+          import json
+
+          with open("published-worker-image.spdx.json", encoding="utf-8") as source:
+              sbom = json.load(source)
+          packages = {
+              package.get("name", "").lower().replace("_", "-")
+              for package in sbom.get("packages", [])
+          }
+          required = {"resemble-enhance", "torch", "torchaudio", "signal-enhancer-worker"}
+          missing = sorted(required - packages)
+          assert not missing, f"production packages missing from SBOM: {', '.join(missing)}"
+          PY
+      - name: Block high and critical vulnerabilities in the published image
+        uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2 # v7.4.0
+        with:
+          sbom: published-worker-image.spdx.json
+          fail-build: true
+          severity-cutoff: high
+          only-fixed: false
+          output-format: table
+          cache-db: true
+      - name: Publish immutable deployment coordinate
+        run: echo "${{ steps.image.outputs.name }}@${{ steps.build.outputs.digest }}" >> "$GITHUB_STEP_SUMMARY"

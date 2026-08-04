@@ -384,6 +384,90 @@ test("a delayed playback request cannot restart after the user switches inputs",
     .toBe(1);
 });
 
+test("a cancelled demo upgrade cannot complete a replacement run", async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "chromium",
+    "One async upgrade-ownership audit is sufficient.",
+  );
+
+  await page.addInitScript(() => {
+    const pending = new Set<number>();
+    const nativeSetTimeout = window.setTimeout.bind(window);
+    const nativeClearTimeout = window.clearTimeout.bind(window);
+    Object.defineProperty(globalThis, "__signalUpgradeTimerAudit", {
+      configurable: true,
+      value: { pending },
+    });
+    window.setTimeout = ((
+      handler: TimerHandler,
+      timeout?: number,
+      ...args: unknown[]
+    ) => {
+      let timerId = 0;
+      const trackedHandler =
+        typeof handler === "function"
+          ? (...callbackArgs: unknown[]) => {
+              pending.delete(timerId);
+              handler(...callbackArgs);
+            }
+          : handler;
+      timerId = nativeSetTimeout(trackedHandler, timeout, ...args);
+      if (timeout === 180 || timeout === 520) pending.add(timerId);
+      return timerId;
+    }) as typeof window.setTimeout;
+    window.clearTimeout = ((timerId?: number) => {
+      if (timerId !== undefined) pending.delete(timerId);
+      nativeClearTimeout(timerId);
+    }) as typeof window.clearTimeout;
+  });
+
+  await openPreparedReview(page);
+  await page.getByRole("button", { name: "Upgrade Input A" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Reshaping the signal." }),
+  ).toBeVisible();
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          (
+            globalThis as typeof globalThis & {
+              __signalUpgradeTimerAudit: { pending: Set<number> };
+            }
+          ).__signalUpgradeTimerAudit.pending.size,
+      ),
+    )
+    .toBeGreaterThan(0);
+  await page.getByRole("button", { name: "Cancel upgrade" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Prepare your reading." }),
+  ).toBeVisible();
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          (
+            globalThis as typeof globalThis & {
+              __signalUpgradeTimerAudit: { pending: Set<number> };
+            }
+          ).__signalUpgradeTimerAudit.pending.size,
+      ),
+    )
+    .toBe(0);
+
+  await page.getByRole("button", { name: "About Signal Enhancer" }).click();
+  await page.getByRole("button", { name: /Explore a prepared review/ }).click();
+  await page.getByRole("button", { name: "Upgrade Input A" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Reshaping the signal." }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "A local preview, made visible." }),
+  ).toBeVisible({ timeout: 8_000 });
+});
+
 test("prepared review completes the honest browser-only journey", async ({
   page,
 }, testInfo) => {
