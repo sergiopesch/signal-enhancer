@@ -43,6 +43,7 @@ export function DeviceSelector({
         </span>
         <select
           aria-label={`${label} device`}
+          title={selected?.label}
           value={selectedId}
           onChange={(event) => onChange(event.target.value)}
         >

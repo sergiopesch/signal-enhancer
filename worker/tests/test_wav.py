@@ -97,7 +97,9 @@ def test_float_nan_is_rejected() -> None:
 
 def test_stereo_and_compressed_codecs_are_rejected() -> None:
     payload = b"\x00\x00\x00\x00"
-    for codec, channels, bits in [(1, 2, 16), (6, 1, 8)]:
+    # 0x0011 is IMA ADPCM. Keeping it outside the decoder is also the compensating
+    # boundary for the reviewed libsndfile CVE-2026-37555 VEX statement.
+    for codec, channels, bits in [(1, 2, 16), (6, 1, 8), (0x0011, 1, 4)]:
         align = channels * max(1, bits // 8)
         fmt = struct.pack("<HHIIHH", codec, channels, 16_000, 16_000 * align, align, bits)
         riff_size = 4 + 8 + len(fmt) + 8 + len(payload)

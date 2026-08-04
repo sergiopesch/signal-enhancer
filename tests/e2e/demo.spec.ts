@@ -37,6 +37,93 @@ async function openPreparedReview(page: Page) {
   ).toBeVisible();
 }
 
+test("stage exits are inert and focus follows the incoming stage", async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "chromium",
+    "One transition lifecycle audit is sufficient.",
+  );
+
+  await openPreparedReview(page);
+  await page
+    .getByRole("button", { name: "Repeat both captures" })
+    .evaluate((repeatButton) => {
+      const scene = repeatButton.closest<HTMLElement>("[data-scene-presence]");
+      if (!scene) throw new Error("The reveal scene was not found.");
+      const samples: Array<{
+        hidden: string | null;
+        inert: boolean;
+        pointerEvents: string;
+        presence: string | null;
+      }> = [];
+      const record = () => {
+        samples.push({
+          hidden: scene.getAttribute("aria-hidden"),
+          inert: scene.hasAttribute("inert"),
+          pointerEvents: getComputedStyle(scene).pointerEvents,
+          presence: scene.getAttribute("data-scene-presence"),
+        });
+      };
+      const observer = new MutationObserver(record);
+      observer.observe(scene, {
+        attributes: true,
+        attributeFilter: [
+          "aria-hidden",
+          "data-scene-presence",
+          "inert",
+          "style",
+        ],
+      });
+      record();
+      Object.defineProperty(globalThis, "__signalSceneExitAudit", {
+        configurable: true,
+        value: { observer, samples },
+      });
+    });
+
+  await page.getByRole("button", { name: "Upgrade Input A" }).click();
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const audit = (
+          globalThis as typeof globalThis & {
+            __signalSceneExitAudit: {
+              observer: MutationObserver;
+              samples: Array<{
+                hidden: string | null;
+                inert: boolean;
+                pointerEvents: string;
+                presence: string | null;
+              }>;
+            };
+          }
+        ).__signalSceneExitAudit;
+        return audit.samples.some(
+          (sample) =>
+            sample.presence === "exiting" &&
+            sample.inert &&
+            sample.hidden === "true" &&
+            sample.pointerEvents === "none",
+        );
+      }),
+    )
+    .toBe(true);
+
+  const incomingHeading = page.getByRole("heading", {
+    name: "Reshaping the signal.",
+  });
+  await expect(incomingHeading).toBeVisible();
+  await expect(incomingHeading).toBeFocused();
+  await page.evaluate(() => {
+    (
+      globalThis as typeof globalThis & {
+        __signalSceneExitAudit: { observer: MutationObserver };
+      }
+    ).__signalSceneExitAudit.observer.disconnect();
+  });
+});
+
 function visibleSignalPlot(page: Page) {
   return page.locator(".signal-plot:visible");
 }
@@ -382,6 +469,90 @@ test("a delayed playback request cannot restart after the user switches inputs",
       ),
     )
     .toBe(1);
+});
+
+test("a cancelled demo upgrade cannot complete a replacement run", async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "chromium",
+    "One async upgrade-ownership audit is sufficient.",
+  );
+
+  await page.addInitScript(() => {
+    const pending = new Set<number>();
+    const nativeSetTimeout = window.setTimeout.bind(window);
+    const nativeClearTimeout = window.clearTimeout.bind(window);
+    Object.defineProperty(globalThis, "__signalUpgradeTimerAudit", {
+      configurable: true,
+      value: { pending },
+    });
+    window.setTimeout = ((
+      handler: TimerHandler,
+      timeout?: number,
+      ...args: unknown[]
+    ) => {
+      let timerId = 0;
+      const trackedHandler =
+        typeof handler === "function"
+          ? (...callbackArgs: unknown[]) => {
+              pending.delete(timerId);
+              handler(...callbackArgs);
+            }
+          : handler;
+      timerId = nativeSetTimeout(trackedHandler, timeout, ...args);
+      if (timeout === 180 || timeout === 520) pending.add(timerId);
+      return timerId;
+    }) as typeof window.setTimeout;
+    window.clearTimeout = ((timerId?: number) => {
+      if (timerId !== undefined) pending.delete(timerId);
+      nativeClearTimeout(timerId);
+    }) as typeof window.clearTimeout;
+  });
+
+  await openPreparedReview(page);
+  await page.getByRole("button", { name: "Upgrade Input A" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Reshaping the signal." }),
+  ).toBeVisible();
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          (
+            globalThis as typeof globalThis & {
+              __signalUpgradeTimerAudit: { pending: Set<number> };
+            }
+          ).__signalUpgradeTimerAudit.pending.size,
+      ),
+    )
+    .toBeGreaterThan(0);
+  await page.getByRole("button", { name: "Cancel upgrade" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Prepare your reading." }),
+  ).toBeVisible();
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          (
+            globalThis as typeof globalThis & {
+              __signalUpgradeTimerAudit: { pending: Set<number> };
+            }
+          ).__signalUpgradeTimerAudit.pending.size,
+      ),
+    )
+    .toBe(0);
+
+  await page.getByRole("button", { name: "About Signal Enhancer" }).click();
+  await page.getByRole("button", { name: /Explore a prepared review/ }).click();
+  await page.getByRole("button", { name: "Upgrade Input A" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Reshaping the signal." }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "A local preview, made visible." }),
+  ).toBeVisible({ timeout: 8_000 });
 });
 
 test("prepared review completes the honest browser-only journey", async ({

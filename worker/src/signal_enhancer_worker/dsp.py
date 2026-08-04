@@ -84,7 +84,10 @@ def _match_loudness(processed: FloatSamples, reference: FloatSamples) -> FloatSa
         matched = processed.copy()
     else:
         raw_gain = reference_rms / processed_rms
-        limited_gain = float(np.clip(raw_gain, 10 ** (-1.5 / 20.0), 10 ** (1.5 / 20.0)))
+        # Generative restoration can change level materially. Permit enough
+        # attenuation to return to the captured reference while bounding upward
+        # gain so very quiet or pathological output cannot amplify noise wildly.
+        limited_gain = float(np.clip(raw_gain, 10 ** (-12.0 / 20.0), 10 ** (3.0 / 20.0)))
         matched = processed * limited_gain
     peak = float(np.max(np.abs(matched), initial=0.0))
     if peak > 0.98:
@@ -92,7 +95,11 @@ def _match_loudness(processed: FloatSamples, reference: FloatSamples) -> FloatSa
     return matched.astype(np.float32, copy=False)
 
 
-def restrained_dsp(samples: FloatSamples, sample_rate: int) -> DspResult:
+def restrained_dsp(
+    samples: FloatSamples,
+    sample_rate: int,
+    loudness_reference: FloatSamples | None = None,
+) -> DspResult:
     metrics = analyze_signal(samples, sample_rate)
     processed = _one_pole_high_pass(samples, sample_rate, 68.0)
     stages: list[str] = ["68 Hz high-pass filtering"]
@@ -104,18 +111,53 @@ def restrained_dsp(samples: FloatSamples, sample_rate: int) -> DspResult:
     if metrics.high_frequency_energy_ratio > 0.035:
         processed = _de_ess(processed, sample_rate)
         stages.append("up to 1.7 dB adaptive sibilance restraint")
-    processed = _match_loudness(processed, samples)
-    stages.append("loudness matching within 1.5 dB and 0.98 peak safety")
+    processed = _match_loudness(
+        processed,
+        samples if loudness_reference is None else loudness_reference,
+    )
+    stages.append("original-reference loudness matching and 0.98 peak safety")
     return DspResult(samples=processed, applied_processing=tuple(stages))
 
 
-def resample_linear(samples: FloatSamples, source_rate: int, target_rate: int) -> FloatSamples:
+def resample_bandlimited(
+    samples: FloatSamples,
+    source_rate: int,
+    target_rate: int,
+) -> FloatSamples:
+    """Windowed-sinc resampling without a heavyweight runtime dependency.
+
+    Resemble emits 44.1 kHz while browser capture commonly arrives at 48 kHz.
+    Linear interpolation audibly softens the restored upper band, so this path
+    uses a 32-tap Lanczos-windowed low-pass kernel and bounded processing chunks.
+    """
+
     if source_rate == target_rate:
         return samples.astype(np.float32, copy=True)
+    if source_rate <= 0 or target_rate <= 0 or samples.size == 0:
+        raise ValueError("sample rates and input samples must be positive")
+
     output_length = max(1, round(samples.size * target_rate / source_rate))
-    source_positions = np.arange(samples.size, dtype=np.float64)
-    target_positions = np.linspace(0.0, max(0.0, samples.size - 1.0), output_length)
-    return np.interp(target_positions, source_positions, samples).astype(np.float32)
+    output = np.empty(output_length, dtype=np.float32)
+    radius = 16
+    taps = np.arange(-radius + 1, radius + 1, dtype=np.int64)
+    cutoff = min(1.0, target_rate / source_rate)
+    chunk_size = 16_384
+
+    for start in range(0, output_length, chunk_size):
+        stop = min(output_length, start + chunk_size)
+        positions = np.arange(start, stop, dtype=np.float64) * source_rate / target_rate
+        centers = np.floor(positions).astype(np.int64)
+        indices = centers[:, None] + taps[None, :]
+        distance = positions[:, None] - indices
+        kernel = cutoff * np.sinc(distance * cutoff) * np.sinc(distance / radius)
+        valid = (indices >= 0) & (indices < samples.size)
+        kernel *= valid
+        weight = np.sum(kernel, axis=1, keepdims=True)
+        kernel = np.divide(kernel, weight, out=np.zeros_like(kernel), where=np.abs(weight) > 1e-12)
+        bounded_indices = np.clip(indices, 0, samples.size - 1)
+        output[start:stop] = np.sum(samples[bounded_indices] * kernel, axis=1).astype(np.float32)
+
+    return output
 
 
 def align_length(samples: FloatSamples, frame_count: int) -> FloatSamples:

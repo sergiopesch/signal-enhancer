@@ -1,0 +1,358 @@
+{
+  "@context": "https://openvex.dev/ns/v0.2.0",
+  "@id": "https://github.com/sergiopesch/signal-enhancer/blob/main/deploy/worker.openvex.json",
+  "author": "Signal Enhancer maintainers <https://github.com/sergiopesch/signal-enhancer>",
+  "timestamp": "2026-08-04T19:00:00Z",
+  "version": 1,
+  "x-signal-enhancer-boundary": {
+    "algorithm": "sha256",
+    "paths": {
+      ".github/workflows/ci.yml": "ef5dbce041563914237546efea753cacd764a85a30c543dfd55d4161eaf62b96",
+      ".github/workflows/publish-worker.yml": "33d273b8f3625eea86e8914105d0ad35039ba25848247e0f8d3f0f3f7b07ec0c",
+      "deploy/render_worker_vex.py": "310f3f3b81d80ba7e23fa03de3c0eb948555449b5392d93e99fac5929612fb22",
+      "deploy/test_render_worker_vex.py": "0a3ba19ff1cf9f2b8379a7cd477e3c817dbbbb724ae562706980616b1a669303",
+      "deploy/test_verify_worker_native_boundary.py": "325aee45cebf5bb6a5cb98306f32817084c5b40796e55474c97a20b98ea1bcdb",
+      "deploy/test_verify_worker_vex_results.py": "071f8d9cf8094aa08cb388c531aec18fb5fd329d1cda7ed73c4849b1162a5079",
+      "deploy/verify_worker_native_boundary.py": "1571eccd28a122e970f32dfb87a40a1716cb1bffdad94c604e9ad9121f93d7b5",
+      "deploy/verify_worker_vex_results.py": "795f138898c3f601111eff77021023f8e6ecf337d7a83681103356e508f5c7ca",
+      "deploy/verify_worker_vex_scan.sh": "893e4e04ef2801a655cbe7af2a0c0210b534c87778671fc5db04b8fa1b27258f",
+      "worker/.dockerignore": "a75d0c47ae79e3170ddb1dfbdad0cf51b29120ea13412619733d12ab63d1b399",
+      "worker/Dockerfile": "839473ca3fd0d68c94acca4ba041d3691c50458496275922dee2b6d4e38682f3",
+      "worker/pyproject.toml": "d80fafebe6d8e50398585f1aa204c181550a22729cb37a74dfb26a0aaf937daf",
+      "worker/src": "f67634ae0a0ea4595bf9a06d44ce756cf038438a65aa992b476d2dc6938f3d04",
+      "worker/tests/test_wav.py": "eef0f30a530ffd7648fa5e5dcead76953aaf12cb1f1d0b823a57594f88d84592",
+      "worker/uv.lock": "4a4545ebf0403a8289ad210edf99b8c85a80e459be2564ffce81b4e265c00a6f"
+    }
+  },
+  "statements": [
+    {
+      "vulnerability": { "name": "CVE-2026-11940" },
+      "products": [{ "@id": "pkg:generic/python@3.12.13" }],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "impact_statement": "Boundary: the worker neither accepts nor extracts archives, and its runtime source does not import tarfile. Evidence: https://www.cve.org/CVERecord?id=CVE-2026-11940 Reassess: at Python 3.12.14 or any Python package change."
+    },
+    {
+      "vulnerability": { "name": "CVE-2026-11972" },
+      "products": [{ "@id": "pkg:generic/python@3.12.13" }],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "impact_statement": "Boundary: the worker neither accepts nor streams tar archives, and its runtime source does not import tarfile. Evidence: https://www.cve.org/CVERecord?id=CVE-2026-11972 Reassess: at Python 3.12.14 or any Python package change."
+    },
+    {
+      "vulnerability": { "name": "CVE-2026-15308" },
+      "products": [{ "@id": "pkg:generic/python@3.12.13" }],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "impact_statement": "Boundary: the JSON-only worker does not parse HTML or import html.parser. Evidence: https://www.cve.org/CVERecord?id=CVE-2026-15308 Reassess: at Python 3.12.14 or any Python package change."
+    },
+    {
+      "vulnerability": { "name": "CVE-2026-3298" },
+      "products": [{ "@id": "pkg:generic/python@3.12.13" }],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "impact_statement": "Boundary: the vulnerable ProactorEventLoop implementation is Windows-only; this image is locked and tested as linux/amd64. Evidence: https://www.cve.org/CVERecord?id=CVE-2026-3298 Reassess: at Python 3.12.14 or any platform/package change."
+    },
+    {
+      "vulnerability": { "name": "CVE-2026-3644" },
+      "products": [{ "@id": "pkg:generic/python@3.12.13" }],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "impact_statement": "Boundary: Starlette imports http.cookies only for request parsing, while the worker never accesses Request.cookies and no path updates/unpickles Morsel or calls BaseCookie.js_output. Evidence: https://www.cve.org/CVERecord?id=CVE-2026-3644 Reassess: at Python 3.12.14 or any Python/package/request-cookie path change."
+    },
+    {
+      "vulnerability": { "name": "CVE-2026-4224" },
+      "products": [{ "@id": "pkg:generic/python@3.12.13" }],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "impact_statement": "Boundary: the worker accepts JSON plus pre-signed PCM/float WAV objects and has no XML, DTD, ElementDeclHandler, or Expat path. Evidence: https://www.cve.org/CVERecord?id=CVE-2026-4224 Reassess: at Python 3.12.14 or any Python package change."
+    },
+    {
+      "vulnerability": { "name": "CVE-2026-4786" },
+      "products": [{ "@id": "pkg:generic/python@3.12.13" }],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "impact_statement": "Boundary: the headless worker never imports webbrowser or launches a browser/shell from a URL. Evidence: https://www.cve.org/CVERecord?id=CVE-2026-4786 Reassess: at Python 3.12.14 or any Python package change."
+    },
+    {
+      "vulnerability": { "name": "CVE-2026-6100" },
+      "products": [{ "@id": "pkg:generic/python@3.12.13" }],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "impact_statement": "Boundary: the worker does not decompress attacker data or reuse lzma, bz2, or gzip decompressor objects after MemoryError. Evidence: https://www.cve.org/CVERecord?id=CVE-2026-6100 Reassess: at Python 3.12.14 or any Python package change."
+    },
+    {
+      "vulnerability": { "name": "CVE-2026-7210" },
+      "products": [{ "@id": "pkg:generic/python@3.12.13" }],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "impact_statement": "Boundary: the worker has no XML or ElementTree input path, so an attacker cannot supply an Expat hash-flooding document. Evidence: https://www.cve.org/CVERecord?id=CVE-2026-7210 Reassess: at Python 3.12.14 or any Python package change."
+    },
+    {
+      "vulnerability": { "name": "CVE-2026-9669" },
+      "products": [{ "@id": "pkg:generic/python@3.12.13" }],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "impact_statement": "Boundary: the worker does not process bzip2 input or reuse BZ2Decompressor after an error. Evidence: https://www.cve.org/CVERecord?id=CVE-2026-9669 Reassess: at Python 3.12.14 or any Python package change."
+    },
+    {
+      "vulnerability": { "name": "CVE-2026-41992" },
+      "products": [
+        { "@id": "pkg:deb/debian/gzip@1.13-1?arch=amd64&distro=debian-13" }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "impact_statement": "Boundary: the Python worker launches no subprocesses and never invokes gzip over attacker-controlled LZW/LZH files. Evidence: https://security-tracker.debian.org/tracker/CVE-2026-41992 Reassess: on any gzip or base-image change."
+    },
+    {
+      "vulnerability": { "name": "CVE-2026-54369" },
+      "products": [
+        {
+          "@id": "pkg:deb/debian/libacl1@2.3.2-2%2Bb1?arch=amd64&distro=debian-13&upstream=acl%402.3.2-2"
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "impact_statement": "Boundary: the worker performs no pathname ACL operation and runs without privilege as UID/GID 10001, so an attacker cannot direct a privileged acl_*_file call. Evidence: https://security-tracker.debian.org/tracker/CVE-2026-54369 Reassess: on any ACL or base-image change."
+    },
+    {
+      "vulnerability": { "name": "CVE-2026-54370" },
+      "products": [
+        {
+          "@id": "pkg:deb/debian/libacl1@2.3.2-2%2Bb1?arch=amd64&distro=debian-13&upstream=acl%402.3.2-2"
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "impact_statement": "Boundary: the worker invokes no getfacl, setfacl, chacl, or privileged pathname ACL operation and runs as UID/GID 10001. Evidence: https://security-tracker.debian.org/tracker/CVE-2026-54370 Reassess: on any ACL or base-image change."
+    },
+    {
+      "vulnerability": { "name": "CVE-2026-5435" },
+      "products": [
+        {
+          "@id": "pkg:deb/debian/libc-bin@2.41-12%2Bdeb13u3?arch=amd64&distro=debian-13&upstream=glibc"
+        },
+        {
+          "@id": "pkg:deb/debian/libc6@2.41-12%2Bdeb13u3?arch=amd64&distro=debian-13&upstream=glibc"
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "impact_statement": "Boundary: the worker never calls the deprecated resolver-debug functions, and CI inventories every final-image ELF before audit-tool installation, verifies it remains byte-identical, and fails on imports or non-provider symbol strings for ns_printrrf, ns_printrr, or fp_nquery. Evidence: https://security-tracker.debian.org/tracker/CVE-2026-5435 Reassess: on any native dependency, audit, glibc, or base-image change."
+    },
+    {
+      "vulnerability": { "name": "CVE-2026-5450" },
+      "products": [
+        {
+          "@id": "pkg:deb/debian/libc-bin@2.41-12%2Bdeb13u3?arch=amd64&distro=debian-13&upstream=glibc"
+        },
+        {
+          "@id": "pkg:deb/debian/libc6@2.41-12%2Bdeb13u3?arch=amd64&distro=debian-13&upstream=glibc"
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "impact_statement": "Boundary: remote input cannot control a native format string, and CI inventories every byte-identical final-image ELF and scans narrow plus UTF-32LE/BE literals for %mc, %mC, or %mlc scanf formats whose explicit width exceeds 1024. Evidence: https://security-tracker.debian.org/tracker/CVE-2026-5450 Reassess: on any native dependency, audit, glibc, or base-image change."
+    },
+    {
+      "vulnerability": { "name": "CVE-2026-5928" },
+      "products": [
+        {
+          "@id": "pkg:deb/debian/libc-bin@2.41-12%2Bdeb13u3?arch=amd64&distro=debian-13&upstream=glibc"
+        },
+        {
+          "@id": "pkg:deb/debian/libc6@2.41-12%2Bdeb13u3?arch=amd64&distro=debian-13&upstream=glibc"
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "impact_statement": "Boundary: the image locks and CI verifies LANG/LC_ALL=C.UTF-8, where the required single/multibyte encoding overlap is impossible; the protocol is JSON/UTF-8 plus binary WAV and has no ungetwc path. Evidence: https://security-tracker.debian.org/tracker/CVE-2026-5928 Reassess: on any locale, native dependency, glibc, or base-image change."
+    },
+    {
+      "vulnerability": { "name": "CVE-2025-69720" },
+      "products": [
+        {
+          "@id": "pkg:deb/debian/libncursesw6@6.5%2B20250216-2?arch=amd64&distro=debian-13&upstream=ncurses"
+        },
+        {
+          "@id": "pkg:deb/debian/libtinfo6@6.5%2B20250216-2?arch=amd64&distro=debian-13&upstream=ncurses"
+        },
+        {
+          "@id": "pkg:deb/debian/ncurses-base@6.5%2B20250216-2?arch=all&distro=debian-13&upstream=ncurses"
+        },
+        {
+          "@id": "pkg:deb/debian/ncurses-bin@6.5%2B20250216-2?arch=amd64&distro=debian-13&upstream=ncurses"
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "impact_statement": "Boundary: the flaw is confined to the infocmp CLI, while the worker launches no subprocess and exposes no terminal/terminfo input. Evidence: https://security-tracker.debian.org/tracker/CVE-2025-69720 Reassess: on any ncurses or base-image change."
+    },
+    {
+      "vulnerability": { "name": "CVE-2026-11822" },
+      "products": [
+        {
+          "@id": "pkg:deb/debian/libsqlite3-0@3.46.1-7%2Bdeb13u1?arch=amd64&distro=debian-13&upstream=sqlite3"
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "impact_statement": "Boundary: the worker opens no SQLite database, accepts no SQL, and executes no FTS5 MATCH query over an attacker-controlled database. Evidence: https://security-tracker.debian.org/tracker/CVE-2026-11822 Reassess: on any SQLite or base-image change."
+    },
+    {
+      "vulnerability": { "name": "CVE-2026-11824" },
+      "products": [
+        {
+          "@id": "pkg:deb/debian/libsqlite3-0@3.46.1-7%2Bdeb13u1?arch=amd64&distro=debian-13&upstream=sqlite3"
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "impact_statement": "Boundary: the worker opens no SQLite database, accepts no SQL, and executes no FTS5 MATCH query over an attacker-controlled database. Evidence: https://security-tracker.debian.org/tracker/CVE-2026-11824 Reassess: on any SQLite or base-image change."
+    },
+    {
+      "vulnerability": { "name": "CVE-2026-37555" },
+      "products": [
+        {
+          "@id": "pkg:deb/debian/libsndfile1@1.2.2-2%2Bdeb13u1?arch=amd64&distro=debian-13&upstream=libsndfile"
+        },
+        { "@id": "pkg:pypi/soundfile@0.13.1" }
+      ],
+      "status": "not_affected",
+      "justification": "inline_mitigations_already_exist",
+      "impact_statement": "Boundary: both Debian libsndfile and SoundFile 0.13.1's bundled libsndfile 1.2.2 are present, but the worker's bounded RIFF parser rejects IMA ADPCM (format 0x0011) and every codec except PCM/float before passing only tensors to the model; tests pin this rejection. Evidence: https://security-tracker.debian.org/tracker/CVE-2026-37555 Reassess: on any WAV parser, SoundFile, libsndfile, model-adapter, or base-image change."
+    },
+    {
+      "vulnerability": { "name": "CVE-2026-12087" },
+      "products": [
+        {
+          "@id": "pkg:deb/debian/perl-base@5.40.1-6?arch=amd64&distro=debian-13&upstream=perl"
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "impact_statement": "Boundary: although Perl Socket is present, the Python worker never invokes Perl or passes attacker-controlled values to pack_ip_mreq_source. Evidence: https://security-tracker.debian.org/tracker/CVE-2026-12087 Reassess: on any Perl, process-launch, or base-image change."
+    },
+    {
+      "vulnerability": { "name": "CVE-2026-13221" },
+      "products": [
+        {
+          "@id": "pkg:deb/debian/perl-base@5.40.1-6?arch=amd64&distro=debian-13&upstream=perl"
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "impact_statement": "Boundary: the Python worker never invokes Perl or compiles an attacker-controlled Perl regular expression. Evidence: https://security-tracker.debian.org/tracker/CVE-2026-13221 Reassess: on any Perl, process-launch, or base-image change."
+    },
+    {
+      "vulnerability": { "name": "CVE-2026-42496" },
+      "products": [
+        {
+          "@id": "pkg:deb/debian/perl-base@5.40.1-6?arch=amd64&distro=debian-13&upstream=perl"
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "impact_statement": "Boundary: Debian perl-base does not ship Archive::Tar, and the worker does not invoke Perl or extract archives. Evidence: https://packages.debian.org/trixie/amd64/perl-base/filelist Reassess: on any Perl package or base-image change."
+    },
+    {
+      "vulnerability": { "name": "CVE-2026-42497" },
+      "products": [
+        {
+          "@id": "pkg:deb/debian/perl-base@5.40.1-6?arch=amd64&distro=debian-13&upstream=perl"
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "impact_statement": "Boundary: Debian perl-base does not ship Archive::Tar, and the worker does not invoke Perl or extract archives. Evidence: https://packages.debian.org/trixie/amd64/perl-base/filelist Reassess: on any Perl package or base-image change."
+    },
+    {
+      "vulnerability": { "name": "CVE-2026-48959" },
+      "products": [
+        {
+          "@id": "pkg:deb/debian/perl-base@5.40.1-6?arch=amd64&distro=debian-13&upstream=perl"
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "impact_statement": "Boundary: Debian perl-base does not ship IO::Uncompress::Unzip, and the worker does not invoke Perl or inspect ZIP entries. Evidence: https://packages.debian.org/trixie/amd64/perl-base/filelist Reassess: on any Perl package or base-image change."
+    },
+    {
+      "vulnerability": { "name": "CVE-2026-48961" },
+      "products": [
+        {
+          "@id": "pkg:deb/debian/perl-base@5.40.1-6?arch=amd64&distro=debian-13&upstream=perl"
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "impact_statement": "Boundary: Debian perl-base does not ship the zipdetails CLI, and the worker launches no subprocess or ZIP tooling. Evidence: https://packages.debian.org/trixie/amd64/perl-base/filelist Reassess: on any Perl package or base-image change."
+    },
+    {
+      "vulnerability": { "name": "CVE-2026-48962" },
+      "products": [
+        {
+          "@id": "pkg:deb/debian/perl-base@5.40.1-6?arch=amd64&distro=debian-13&upstream=perl"
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "impact_statement": "Boundary: Debian perl-base does not ship File::GlobMapper/IO::Compress, and the worker never invokes Perl with an output glob. Evidence: https://packages.debian.org/trixie/amd64/perl-base/filelist Reassess: on any Perl package or base-image change."
+    },
+    {
+      "vulnerability": { "name": "CVE-2026-57432" },
+      "products": [
+        {
+          "@id": "pkg:deb/debian/perl-base@5.40.1-6?arch=amd64&distro=debian-13&upstream=perl"
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "impact_statement": "Boundary: the Python worker never invokes Perl or supplies an attacker-controlled pack/unpack template. Evidence: https://security-tracker.debian.org/tracker/CVE-2026-57432 Reassess: on any Perl, process-launch, or base-image change."
+    },
+    {
+      "vulnerability": { "name": "CVE-2026-57433" },
+      "products": [
+        {
+          "@id": "pkg:deb/debian/perl-base@5.40.1-6?arch=amd64&distro=debian-13&upstream=perl"
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "impact_statement": "Boundary: Debian perl-base does not ship Storable, and the worker never invokes Perl to deserialize a blob. Evidence: https://packages.debian.org/trixie/amd64/perl-base/filelist Reassess: on any Perl package or base-image change."
+    },
+    {
+      "vulnerability": { "name": "CVE-2026-7017" },
+      "products": [
+        {
+          "@id": "pkg:deb/debian/perl-base@5.40.1-6?arch=amd64&distro=debian-13&upstream=perl"
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "impact_statement": "Boundary: Debian perl-base does not ship HTTP::Tiny, and worker HTTP is implemented in Python/httpx with redirect restrictions. Evidence: https://packages.debian.org/trixie/amd64/perl-base/filelist Reassess: on any Perl package or base-image change."
+    },
+    {
+      "vulnerability": { "name": "CVE-2026-8376" },
+      "products": [
+        {
+          "@id": "pkg:deb/debian/perl-base@5.40.1-6?arch=amd64&distro=debian-13&upstream=perl"
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "impact_statement": "Boundary: the overflow is limited to 32-bit Perl builds, while the image and release validator require linux/amd64; the worker also never invokes Perl. Evidence: https://security-tracker.debian.org/tracker/CVE-2026-8376 Reassess: on any platform, Perl, or base-image change."
+    },
+    {
+      "vulnerability": { "name": "CVE-2026-9538" },
+      "products": [
+        {
+          "@id": "pkg:deb/debian/perl-base@5.40.1-6?arch=amd64&distro=debian-13&upstream=perl"
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "impact_statement": "Boundary: Debian perl-base does not ship Archive::Tar, and the worker does not invoke Perl or extract archives. Evidence: https://packages.debian.org/trixie/amd64/perl-base/filelist Reassess: on any Perl package or base-image change."
+    }
+  ]
+}

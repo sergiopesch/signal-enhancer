@@ -11,7 +11,11 @@ from typing import Any
 import numpy as np
 
 from signal_enhancer_worker.config import (
-    DEFAULT_RESEMBLE_CHECKPOINT_SHA256,
+    DEFAULT_RESEMBLE_ARTIFACT_MANIFEST,
+    DEFAULT_RESEMBLE_INFERENCE_LAMBD,
+    DEFAULT_RESEMBLE_INFERENCE_NFE,
+    DEFAULT_RESEMBLE_INFERENCE_SOLVER,
+    DEFAULT_RESEMBLE_INFERENCE_TAU,
     DEFAULT_RESEMBLE_SOURCE_REVISION,
 )
 from signal_enhancer_worker.errors import EngineError
@@ -41,22 +45,16 @@ class ResembleEnhanceAdapter:
             return
         if self.source_revision != DEFAULT_RESEMBLE_SOURCE_REVISION:
             raise EngineError("The configured restoration model revision is not approved.")
-        checkpoint_path = (
-            self._run_dir / "ds" / "G" / "default" / "mp_rank_00_model_states.pt"
+        artifacts = tuple(
+            (self._run_dir / relative_path, expected_sha256)
+            for relative_path, expected_sha256 in DEFAULT_RESEMBLE_ARTIFACT_MANIFEST
         )
-        required_files = (
-            self._run_dir / "hparams.yaml",
-            self._run_dir / "ds" / "G" / "latest",
-            checkpoint_path,
-        )
-        if not all(path.is_file() for path in required_files):
+        if not all(path.is_file() for path, _ in artifacts):
             # Never let the upstream helper fall back to downloading a floating model revision.
             raise EngineError("The pinned restoration artifacts are not mounted.")
-        if not hmac.compare_digest(
-            _sha256_file(checkpoint_path),
-            DEFAULT_RESEMBLE_CHECKPOINT_SHA256,
-        ):
-            raise EngineError("The pinned restoration checkpoint checksum is invalid.")
+        for path, expected_sha256 in artifacts:
+            if not hmac.compare_digest(_sha256_file(path), expected_sha256):
+                raise EngineError("The pinned restoration artifact manifest is invalid.")
         try:
             torch = importlib.import_module("torch")
             inference = importlib.import_module("resemble_enhance.enhancer.inference")
@@ -81,10 +79,10 @@ class ResembleEnhanceAdapter:
                 waveform,
                 sample_rate,
                 self._device,
-                nfe=32,
-                solver="midpoint",
-                lambd=0.35,
-                tau=0.45,
+                nfe=DEFAULT_RESEMBLE_INFERENCE_NFE,
+                solver=DEFAULT_RESEMBLE_INFERENCE_SOLVER,
+                lambd=DEFAULT_RESEMBLE_INFERENCE_LAMBD,
+                tau=DEFAULT_RESEMBLE_INFERENCE_TAU,
                 run_dir=self._run_dir,
             )
             output = result.detach().cpu().numpy().astype(np.float32, copy=False)

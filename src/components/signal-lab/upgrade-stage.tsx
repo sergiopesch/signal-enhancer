@@ -26,7 +26,7 @@ import { SignalMark } from "./signal-mark";
 import { SignalPlot, type PlotTrack, type PlotView } from "./signal-plot";
 import { Transport } from "./transport";
 import { ViewTabs } from "./view-switches";
-import type { CaptureRecord, UpgradeEvent } from "./types";
+import type { CaptureRecord, UpgradeEvent, UpgradeProvenance } from "./types";
 
 const STAGES = [
   "Receiving capture",
@@ -52,9 +52,11 @@ type UpgradeStageProps = {
   events: readonly UpgradeEvent[];
   state: "running" | "complete" | "failed";
   mode: "demo" | "live";
+  provenance: UpgradeProvenance | null;
   playing: boolean;
   currentTime: number;
   error: string | undefined;
+  onAlternatePlayback: () => void;
   onTogglePlayback: () => void;
   onSeek: (time: number) => void;
   onCancel: () => void;
@@ -188,41 +190,6 @@ function UpgradeProgress({
 
       <div className="upgrade-progress-instrument">
         <InstrumentRegistration />
-        <div className="progress-legend">
-          <span>
-            <i data-color="cyan" />
-            DSP preview ready
-          </span>
-          <span>
-            <i data-color="amber" />
-            {mode === "live"
-              ? "AI restoration in progress"
-              : "Local DSP route in progress"}
-          </span>
-        </div>
-        <div className="stage-gates" aria-hidden="true">
-          {STAGES.map((stage, index) => (
-            <span
-              key={stage}
-              data-state={
-                index < currentIndex
-                  ? "complete"
-                  : index === currentIndex
-                    ? "active"
-                    : "future"
-              }
-            >
-              <small>{stage}</small>
-              <i>
-                {index < currentIndex
-                  ? "✓"
-                  : index === currentIndex
-                    ? "●"
-                    : "○"}
-              </i>
-            </span>
-          ))}
-        </div>
         <SignalPlot
           tracks={[
             {
@@ -233,7 +200,7 @@ function UpgradeProgress({
             },
             {
               id: "preview",
-              label: "Preview",
+              label: mode === "live" ? "Preview" : "Local preview",
               color: "amber",
               samples: previewSamples,
             },
@@ -298,8 +265,10 @@ function UpgradeResult({
   source,
   enhanced,
   mode,
+  provenance,
   playing,
   currentTime,
+  onAlternatePlayback,
   onTogglePlayback,
   onSeek,
   onReset,
@@ -309,8 +278,10 @@ function UpgradeResult({
     | "source"
     | "enhanced"
     | "mode"
+    | "provenance"
     | "playing"
     | "currentTime"
+    | "onAlternatePlayback"
     | "onTogglePlayback"
     | "onSeek"
     | "onReset"
@@ -318,6 +289,7 @@ function UpgradeResult({
 >) {
   const [view, setView] = useState<PlotView>("waveform");
   const result = enhanced ?? source;
+  const modelRevision = provenance?.modelRevision.slice(0, 8);
   const tracks = useMemo<PlotTrack[]>(
     () => [
       {
@@ -331,7 +303,7 @@ function UpgradeResult({
       },
       {
         id: "enhanced",
-        label: "Enhanced",
+        label: mode === "live" ? "Enhanced" : "Local preview",
         color: "amber",
         samples: result.waveform,
         spectrum: result.spectrum,
@@ -339,7 +311,7 @@ function UpgradeResult({
         dynamics: result.dynamics,
       },
     ],
-    [result, source],
+    [mode, result, source],
   );
 
   return (
@@ -356,15 +328,18 @@ function UpgradeResult({
           </h1>
           <p>
             {mode === "live"
-              ? "The protected worker returned a result for direct comparison; its exact routing and versions remain in the backend receipt."
+              ? "A protected Hugging Face endpoint returned a revision-pinned restoration with a verified audio receipt."
               : "Fixed filters and restrained dynamics shaped this browser-only preview; no AI model was used."}
           </p>
-          <span>Enhanced from Input A · {source.deviceLabel}</span>
+          <span>
+            {mode === "live" ? "Enhanced" : "Preview"} from Input A ·{" "}
+            {source.deviceLabel}
+          </span>
         </div>
         <button
           className="button button-secondary compare-button"
           type="button"
-          onClick={onTogglePlayback}
+          onClick={onAlternatePlayback}
         >
           <span className="compare-circles" aria-hidden="true">
             <i />
@@ -414,8 +389,11 @@ function UpgradeResult({
               { label: "Comparison", value: "Loudness matched" },
               {
                 label: "Pipeline",
-                value: mode === "live" ? "Backend receipt" : "browser-v1",
+                value: mode === "live" ? "HF · Resemble Enhance" : "browser-v1",
               },
+              ...(mode === "live" && modelRevision
+                ? [{ label: "Model", value: modelRevision }]
+                : []),
             ]}
           />
           <Transport
@@ -424,7 +402,7 @@ function UpgradeResult({
             duration={GUIDED_READING_DURATION_SECONDS}
             onToggle={onTogglePlayback}
             onSeek={onSeek}
-            label="original or result, one at a time"
+            label={`original or ${mode === "live" ? "result" : "local preview"}, one at a time`}
           />
         </div>
 
@@ -490,7 +468,7 @@ function UpgradeResult({
                   <dt>Restoration route</dt>
                   <dd>
                     {mode === "live"
-                      ? "Backend-reported receipt"
+                      ? "Hugging Face · Resemble"
                       : "Local DSP preview"}
                   </dd>
                 </div>
@@ -499,8 +477,14 @@ function UpgradeResult({
                   <dd>{mode === "live" ? "Recorded" : "Transparency mode"}</dd>
                 </div>
                 <div>
-                  <dt>Pipeline version</dt>
-                  <dd>{mode === "live" ? "Backend receipt" : "browser-v1"}</dd>
+                  <dt>
+                    {mode === "live" ? "Model revision" : "Pipeline version"}
+                  </dt>
+                  <dd>
+                    {mode === "live"
+                      ? (modelRevision ?? "Verified receipt")
+                      : "browser-v1"}
+                  </dd>
                 </div>
               </dl>
             </div>

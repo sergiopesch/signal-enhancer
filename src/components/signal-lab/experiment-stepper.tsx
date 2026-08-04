@@ -9,6 +9,14 @@ export const EXPERIMENT_STEPS = [
 ] as const;
 export type ExperimentStage = (typeof EXPERIMENT_STEPS)[number];
 
+const STEP_SHORT_LABELS: Record<ExperimentStage, string> = {
+  Reference: "Ref",
+  "Input A": "A",
+  "Input B": "B",
+  Reveal: "Reveal",
+  Upgrade: "Up",
+};
+
 export function ExperimentStepper({
   stage,
 }: Readonly<{ stage: ExperimentStage }>) {
@@ -39,17 +47,11 @@ export function ExperimentStepper({
                     <Check className="step-check" size={11} strokeWidth={2} />
                   ) : null}
                 </span>
-                <span
-                  className="step-label"
-                  data-short={
-                    step === "Reference"
-                      ? "Ref"
-                      : step === "Upgrade"
-                        ? "Up"
-                        : step.replace("Input ", "")
-                  }
-                >
-                  {step}
+                <span className="step-label">
+                  <span className="step-label-full">{step}</span>
+                  <span className="step-label-short" aria-hidden="true">
+                    {STEP_SHORT_LABELS[step]}
+                  </span>
                 </span>
                 {index < EXPERIMENT_STEPS.length - 1 ? (
                   <span className="step-line" aria-hidden="true" />

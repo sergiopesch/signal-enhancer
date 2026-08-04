@@ -1,0 +1,51 @@
+{
+  "schemaVersion": "1",
+  "service": "signal-enhancer-worker",
+  "endpoint": {
+    "namePrefix": "signal-enhancer-",
+    "access": {
+      "policy": "protected",
+      "hfEndpointType": "authenticated",
+      "privateLinkEnabled": false
+    },
+    "cacheHttpResponses": false,
+    "provider": {
+      "vendor": "aws",
+      "region": "eu-west-1"
+    },
+    "compute": {
+      "accelerator": "gpu",
+      "instanceType": "nvidia-l4",
+      "instanceSize": "x1",
+      "minReplica": 0,
+      "maxReplica": 1,
+      "scaleToZeroTimeoutMinutes": 15
+    },
+    "model": {
+      "repository": "ResembleAI/resemble-enhance",
+      "framework": "custom",
+      "revision": "4e3510ce4a8391159f665903544c5150bee7b2cb",
+      "checkpointSha256": "f9d035f318de3e6d919bc70cf7ad7d32b4fe92ec5cbe0b30029a27f5db07d9d6"
+    },
+    "container": {
+      "platform": "linux/amd64",
+      "imageReference": null,
+      "imageReferencePolicy": "digest-only",
+      "port": 7860,
+      "healthRoute": "/health"
+    },
+    "runtime": {
+      "plainEnvironment": {
+        "SIGNAL_ENVIRONMENT": "production",
+        "SIGNAL_ENGINE": "resemble",
+        "SIGNAL_ALLOW_DSP_FALLBACK": "false",
+        "SIGNAL_RESEMBLE_RUN_DIR": "/repository/enhancer_stage2",
+        "SIGNAL_RESEMBLE_DEVICE": "cuda",
+        "SIGNAL_RESEMBLE_SOURCE_REVISION": "8e978149bfe8abab3eb77d965d579a111afdb0ff",
+        "SIGNAL_RESEMBLE_MODEL_REVISION": "4e3510ce4a8391159f665903544c5150bee7b2cb"
+      },
+      "requiredPlainEnvironmentNames": ["SIGNAL_ALLOWED_STORAGE_HOSTS"],
+      "requiredSecretNames": ["SIGNAL_ENDPOINT_SECRET"]
+    }
+  }
+}

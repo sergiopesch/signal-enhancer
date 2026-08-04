@@ -1,10 +1,10 @@
 import "server-only";
 
-import { and, desc, eq, inArray, lt, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
 
 import type { CommitCaptureInput } from "./contracts";
 import { ARTIFACT_WRITE_DRAIN_MS, capturePathname } from "./blob";
-import { getDatabase } from "./db";
+import { getCleanupDatabase, getDatabase } from "./db";
 import { getEnvironment } from "./env";
 import { SignalError } from "./errors";
 import {
@@ -18,6 +18,7 @@ import {
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const MIN_UPGRADE_WINDOW_MS = 30 * 60 * 1000;
+const UPGRADE_CAPACITY_LOCK = "signal-enhancer:upgrade-capacity";
 
 export async function createExperimentSession(input: {
   sessionHash: string;
@@ -393,13 +394,13 @@ export async function getExperimentSessionById(sessionId: string) {
 
 export async function reserveUpgradeJob(
   sessionId: string,
+  publicId: string,
   sessionHash: string,
   networkHash: string,
   sessionExpiresAt: Date,
 ) {
   const database = getDatabase();
   const environment = getEnvironment();
-  const dayBucket = new Date().toISOString().slice(0, 10);
   if (sessionExpiresAt.getTime() - Date.now() < MIN_UPGRADE_WINDOW_MS)
     throw new SignalError(
       "session_expiring",
@@ -409,60 +410,128 @@ export async function reserveUpgradeJob(
   const expiresAt = sessionExpiresAt;
   const [, result] = await database.batch([
     database.execute(
-      sql`SELECT pg_advisory_xact_lock(hashtext(${`signal-enhancer:${dayBucket}`}))`,
+      sql`SELECT pg_advisory_xact_lock(hashtext(${UPGRADE_CAPACITY_LOCK}))`,
     ),
     database.execute<{
       globalJobs: number;
       activeJobs: number;
       id: string | null;
       publicId: string | null;
+      workflowRunId: string | null;
+      state: string | null;
+      created: boolean;
       ledgerUpdated: boolean;
     }>(sql`
-    WITH capacity AS MATERIALIZED (
+    WITH reservation_instant AS MATERIALIZED (
+      SELECT clock_timestamp() AS reserved_at
+    ),
+    reservation_clock AS MATERIALIZED (
+      SELECT
+        reservation_instant.reserved_at,
+        to_char(
+          reservation_instant.reserved_at AT TIME ZONE 'UTC',
+          'YYYY-MM-DD'
+        ) AS day_bucket
+      FROM reservation_instant
+    ),
+    existing_job AS MATERIALIZED (
+      SELECT
+        "id",
+        "public_id",
+        "workflow_run_id",
+        "state"
+      FROM "upgrade_jobs"
+      WHERE "session_id" = ${sessionId}::uuid
+      LIMIT 1
+    ),
+    capacity AS MATERIALIZED (
       SELECT
         (
-          SELECT count(*)::integer
-          FROM "upgrade_jobs"
-          WHERE "created_at" >= ${`${dayBucket}T00:00:00.000Z`}::timestamptz
+          SELECT coalesce(sum(ledger."reserved_jobs"), 0)::integer
+          FROM "usage_ledger" AS ledger, reservation_clock
+          WHERE ledger."day_bucket" = reservation_clock.day_bucket
         ) AS global_jobs,
         (
           SELECT count(*)::integer
           FROM "upgrade_jobs"
-          WHERE "state" IN ('queued', 'warming', 'processing', 'storing')
+          WHERE "state" IN (
+            'queued',
+            'warming',
+            'processing',
+            'storing'
+          )
         ) AS active_jobs
     ),
     inserted_job AS (
-      INSERT INTO "upgrade_jobs" ("session_id", "expires_at")
-      SELECT ${sessionId}::uuid, ${expiresAt.toISOString()}::timestamptz
-      FROM capacity
-      WHERE global_jobs < ${environment.MAX_GLOBAL_JOBS_PER_DAY}
+      INSERT INTO "upgrade_jobs" (
+        "session_id",
+        "public_id",
+        "expires_at",
+        "created_at"
+      )
+      SELECT
+        ${sessionId}::uuid,
+        ${publicId}::uuid,
+        ${expiresAt.toISOString()}::timestamptz,
+        reservation_clock.reserved_at
+      FROM capacity, reservation_clock
+      WHERE NOT EXISTS (SELECT 1 FROM existing_job)
+        AND global_jobs < ${environment.MAX_GLOBAL_JOBS_PER_DAY}
         AND active_jobs < ${environment.MAX_ACTIVE_GPU_JOBS}
-      ON CONFLICT ("session_id") DO NOTHING
-      RETURNING "id", "public_id"
+      ON CONFLICT DO NOTHING
+      RETURNING "id", "public_id", "workflow_run_id", "state"
     ),
     updated_ledger AS (
       INSERT INTO "usage_ledger" (
         "session_hash",
         "network_hash",
         "day_bucket",
-        "reserved_jobs"
+        "reserved_jobs",
+        "updated_at"
       )
-      SELECT ${sessionHash}, ${networkHash}, ${dayBucket}, 1
-      FROM inserted_job
+      SELECT
+        ${sessionHash},
+        ${networkHash},
+        reservation_clock.day_bucket,
+        1,
+        reservation_clock.reserved_at
+      FROM inserted_job, reservation_clock
       ON CONFLICT ("session_hash", "day_bucket") DO UPDATE
       SET
         "reserved_jobs" = "usage_ledger"."reserved_jobs" + 1,
-        "updated_at" = now()
+        "updated_at" = EXCLUDED."updated_at"
       RETURNING "id"
+    ),
+    selected_job AS (
+      SELECT
+        existing_job."id",
+        existing_job."public_id",
+        existing_job."workflow_run_id",
+        existing_job."state",
+        false AS "created",
+        true AS "ledgerUpdated"
+      FROM existing_job
+      UNION ALL
+      SELECT
+        inserted_job."id",
+        inserted_job."public_id",
+        inserted_job."workflow_run_id",
+        inserted_job."state",
+        true AS "created",
+        EXISTS (SELECT 1 FROM updated_ledger) AS "ledgerUpdated"
+      FROM inserted_job
     )
     SELECT
       capacity.global_jobs AS "globalJobs",
       capacity.active_jobs AS "activeJobs",
-      inserted_job.id,
-      inserted_job.public_id AS "publicId",
-      EXISTS (SELECT 1 FROM updated_ledger) AS "ledgerUpdated"
+      selected_job.id,
+      selected_job.public_id AS "publicId",
+      selected_job.workflow_run_id AS "workflowRunId",
+      selected_job.state,
+      coalesce(selected_job."created", false) AS "created",
+      coalesce(selected_job."ledgerUpdated", false) AS "ledgerUpdated"
     FROM capacity
-    LEFT JOIN inserted_job ON true
+    LEFT JOIN selected_job ON true
     `),
   ] as const);
   const [reservation] = result.rows;
@@ -472,6 +541,27 @@ export async function reserveUpgradeJob(
       "The signal upgrade could not be reserved.",
       503,
     );
+  if (reservation.id && reservation.publicId) {
+    if (reservation.publicId !== publicId)
+      throw new SignalError(
+        "upgrade_already_used",
+        "This session has already used its signal upgrade.",
+        409,
+      );
+    if (reservation.created && !reservation.ledgerUpdated)
+      throw new SignalError(
+        "upgrade_reservation_failed",
+        "The signal upgrade could not be reserved.",
+        503,
+      );
+    return {
+      id: reservation.id,
+      publicId: reservation.publicId,
+      workflowRunId: reservation.workflowRunId,
+      state: reservation.state ?? "queued",
+      created: reservation.created,
+    };
+  }
   if (reservation.globalJobs >= environment.MAX_GLOBAL_JOBS_PER_DAY)
     throw new SignalError(
       "daily_capacity_reached",
@@ -484,22 +574,210 @@ export async function reserveUpgradeJob(
       "The upgrade engine is occupied. Your browser preview remains available.",
       429,
     );
-  if (!reservation.id || !reservation.publicId || !reservation.ledgerUpdated)
-    throw new SignalError(
-      "upgrade_already_used",
-      "This session has already used its signal upgrade.",
-      409,
-    );
-  return { id: reservation.id, publicId: reservation.publicId };
+  throw new SignalError(
+    "upgrade_already_used",
+    "This session has already used its signal upgrade.",
+    409,
+  );
 }
 
 export async function attachWorkflowRun(jobId: string, workflowRunId: string) {
   const [job] = await getDatabase()
     .update(upgradeJobs)
     .set({ workflowRunId })
-    .where(eq(upgradeJobs.id, jobId))
+    .where(
+      and(
+        eq(upgradeJobs.id, jobId),
+        inArray(upgradeJobs.state, [
+          "queued",
+          "warming",
+          "processing",
+          "storing",
+          "completed",
+          "failed",
+        ]),
+        or(
+          isNull(upgradeJobs.workflowRunId),
+          eq(upgradeJobs.workflowRunId, workflowRunId),
+        ),
+      ),
+    )
     .returning();
-  return job;
+  if (job) return job;
+
+  // A transport error may hide a committed attachment. Re-reading and
+  // accepting only this exact run makes a retry safe without ever replacing a
+  // different workflow or reviving a cancelled job.
+  const current = await getJobById(jobId);
+  if (current.workflowRunId === workflowRunId) return current;
+  throw new SignalError(
+    "workflow_attachment_conflict",
+    "The durable upgrade run could not be attached safely.",
+    409,
+  );
+}
+
+export async function releaseUpgradeJobReservation(
+  jobId: string,
+  sessionHash: string,
+  expectedWorkflowRunId: string | null,
+) {
+  const database = getDatabase();
+  const [, result] = await database.batch([
+    database.execute(
+      sql`SELECT pg_advisory_xact_lock(hashtext(${UPGRADE_CAPACITY_LOCK}))`,
+    ),
+    database.execute<{ released: boolean; ledgerUpdated: boolean }>(sql`
+      WITH eligible_ledger AS MATERIALIZED (
+        -- A session can own only one upgrade job. Select its one outstanding
+        -- reservation instead of re-deriving the bucket from either the web
+        -- clock or the database-created timestamp across a UTC boundary.
+        SELECT ledger."id"
+        FROM "usage_ledger" AS ledger
+        WHERE ledger."session_hash" = ${sessionHash}
+          AND ledger."reserved_jobs" > 0
+        ORDER BY ledger."updated_at" DESC
+        LIMIT 1
+        FOR UPDATE
+      ),
+      eligible_job AS MATERIALIZED (
+        SELECT job."id"
+        FROM "upgrade_jobs" AS job, eligible_ledger
+        WHERE job."id" = ${jobId}::uuid
+          AND job."state" IN ('queued', 'warming', 'processing')
+          AND (
+            (${expectedWorkflowRunId}::text IS NULL AND job."workflow_run_id" IS NULL)
+            OR (
+              ${expectedWorkflowRunId}::text IS NOT NULL
+              AND (
+                job."workflow_run_id" IS NULL
+                OR job."workflow_run_id" = ${expectedWorkflowRunId}
+              )
+            )
+          )
+        FOR UPDATE
+      ),
+      deleted_job AS (
+        DELETE FROM "upgrade_jobs" AS job
+        USING eligible_job
+        WHERE job."id" = eligible_job."id"
+        RETURNING job."id"
+      ),
+      updated_ledger AS (
+        UPDATE "usage_ledger" AS ledger
+        SET
+          "reserved_jobs" = ledger."reserved_jobs" - 1,
+          "updated_at" = now()
+        FROM eligible_ledger
+        WHERE ledger."id" = eligible_ledger."id"
+          AND ledger."reserved_jobs" > 0
+          AND EXISTS (SELECT 1 FROM deleted_job)
+        RETURNING ledger."id"
+      )
+      SELECT
+        EXISTS (SELECT 1 FROM deleted_job) AS "released",
+        EXISTS (SELECT 1 FROM updated_ledger) AS "ledgerUpdated"
+    `),
+  ] as const);
+  const [release] = result.rows;
+  return release?.released === true && release.ledgerUpdated === true;
+}
+
+export async function cancelUnattachedUpgradeJobReservation(
+  job: { sessionId: string; publicId: string; expiresAt: Date },
+  sessionHash: string,
+) {
+  const database = getDatabase();
+  const [, result] = await database.batch([
+    database.execute(
+      sql`SELECT pg_advisory_xact_lock(hashtext(${UPGRADE_CAPACITY_LOCK}))`,
+    ),
+    database.execute<{ tombstoned: boolean; ledgerUpdated: boolean }>(sql`
+      WITH existing_job AS MATERIALIZED (
+        SELECT
+          job."id",
+          job."public_id",
+          job."state",
+          job."workflow_run_id"
+        FROM "upgrade_jobs" AS job
+        WHERE job."session_id" = ${job.sessionId}::uuid
+        LIMIT 1
+        FOR UPDATE
+      ),
+      eligible_ledger AS MATERIALIZED (
+        SELECT ledger."id"
+        FROM "usage_ledger" AS ledger
+        WHERE ledger."session_hash" = ${sessionHash}
+          AND ledger."reserved_jobs" > 0
+        ORDER BY ledger."updated_at" DESC
+        LIMIT 1
+        FOR UPDATE
+      ),
+      cancelled_job AS (
+        UPDATE "upgrade_jobs" AS job
+        SET
+          "state" = 'cancelled',
+          "completed_at" = statement_timestamp()
+        FROM existing_job, eligible_ledger
+        WHERE job."id" = existing_job."id"
+          AND existing_job."public_id" = ${job.publicId}::uuid
+          AND existing_job."state" = 'queued'
+          AND existing_job."workflow_run_id" IS NULL
+        RETURNING job."id"
+      ),
+      inserted_tombstone AS (
+        INSERT INTO "upgrade_jobs" (
+          "session_id",
+          "public_id",
+          "state",
+          "expires_at",
+          "created_at",
+          "completed_at"
+        )
+        SELECT
+          ${job.sessionId}::uuid,
+          ${job.publicId}::uuid,
+          'cancelled',
+          ${job.expiresAt.toISOString()}::timestamptz,
+          statement_timestamp(),
+          statement_timestamp()
+        WHERE NOT EXISTS (SELECT 1 FROM existing_job)
+        ON CONFLICT DO NOTHING
+        RETURNING "id"
+      ),
+      existing_tombstone AS (
+        SELECT existing_job."id"
+        FROM existing_job
+        WHERE existing_job."public_id" = ${job.publicId}::uuid
+          AND existing_job."state" = 'cancelled'
+      ),
+      updated_ledger AS (
+        UPDATE "usage_ledger" AS ledger
+        SET
+          "reserved_jobs" = ledger."reserved_jobs" - 1,
+          "updated_at" = statement_timestamp()
+        FROM eligible_ledger
+        WHERE ledger."id" = eligible_ledger."id"
+          AND ledger."reserved_jobs" > 0
+          AND EXISTS (SELECT 1 FROM cancelled_job)
+        RETURNING ledger."id"
+      )
+      SELECT
+        (
+          EXISTS (SELECT 1 FROM cancelled_job)
+          OR EXISTS (SELECT 1 FROM inserted_tombstone)
+          OR EXISTS (SELECT 1 FROM existing_tombstone)
+        ) AS "tombstoned",
+        (
+          NOT EXISTS (SELECT 1 FROM cancelled_job)
+          OR EXISTS (SELECT 1 FROM updated_ledger)
+        ) AS "ledgerUpdated"
+    `),
+  ] as const);
+  const [cancellation] = result.rows;
+  return (
+    cancellation?.tombstoned === true && cancellation.ledgerUpdated === true
+  );
 }
 
 export async function getOwnedJob(publicId: string, sessionId: string) {
@@ -585,6 +863,47 @@ export async function updateJobState(
   return job;
 }
 
+export async function updateJobStateIfCurrent(
+  jobId: string,
+  expectedStates: readonly string[],
+  state: string,
+  fields: Partial<typeof upgradeJobs.$inferInsert> = {},
+) {
+  const [job] = await getDatabase()
+    .update(upgradeJobs)
+    .set({ state, ...fields })
+    .where(
+      and(
+        eq(upgradeJobs.id, jobId),
+        inArray(upgradeJobs.state, [...expectedStates]),
+      ),
+    )
+    .returning();
+  return job ?? null;
+}
+
+export async function transitionJobStateIdempotently(
+  jobId: string,
+  expectedState: string,
+  state: string,
+  fields: Partial<typeof upgradeJobs.$inferInsert> = {},
+) {
+  const transitioned = await updateJobStateIfCurrent(
+    jobId,
+    [expectedState],
+    state,
+    fields,
+  );
+  if (transitioned) return { job: transitioned, transitioned: true as const };
+
+  // Durable steps can be retried after the database committed but before the
+  // caller received its acknowledgement. Treat only the exact target state as
+  // an idempotent replay; terminal or later states remain protected.
+  const current = await getJobById(jobId);
+  if (current.state !== state) return null;
+  return { job: current, transitioned: false as const };
+}
+
 export async function appendJobEvent(
   jobId: string,
   stage: string,
@@ -614,33 +933,48 @@ export async function listJobEvents(jobId: string) {
 }
 
 export async function listExpiredSessionsForCleanup(limit = 25) {
-  const database = getDatabase();
+  const database = getCleanupDatabase();
   const now = new Date();
-  const expired = await database
+  const safeDeleteBefore = new Date(now.getTime() - ARTIFACT_WRITE_DRAIN_MS);
+  const expiredRows = await database
     .select({
       id: experimentSessions.id,
       publicId: experimentSessions.publicId,
       expiresAt: experimentSessions.expiresAt,
     })
     .from(experimentSessions)
-    .where(lt(experimentSessions.expiresAt, now))
+    .where(lt(experimentSessions.expiresAt, safeDeleteBefore))
     .orderBy(experimentSessions.expiresAt)
-    .limit(limit);
+    .limit(limit + 1);
+  const eligibleRows = expiredRows.filter(
+    ({ expiresAt }) => expiresAt.getTime() < safeDeleteBefore.getTime(),
+  );
+  const hasMore = eligibleRows.length > limit;
+  const expired = eligibleRows.slice(0, limit);
+  const oldestExpiredAt = expired[0]?.expiresAt.toISOString() ?? null;
   const expiredSessionIds = expired.map(({ id }) => id);
   if (expiredSessionIds.length === 0)
-    return { sessionIds: [] as string[], pathnames: [] as string[] };
+    return {
+      sessions: [] as Array<{ sessionId: string; pathnames: string[] }>,
+      hasMore,
+      oldestExpiredAt,
+    };
 
   const [captureRows, grantRows, jobRows] = await Promise.all([
     database
-      .select({ pathname: captures.pathname })
+      .select({ sessionId: captures.sessionId, pathname: captures.pathname })
       .from(captures)
       .where(inArray(captures.sessionId, expiredSessionIds)),
     database
-      .select({ pathname: captureUploadGrants.pathname })
+      .select({
+        sessionId: captureUploadGrants.sessionId,
+        pathname: captureUploadGrants.pathname,
+      })
       .from(captureUploadGrants)
       .where(inArray(captureUploadGrants.sessionId, expiredSessionIds)),
     database
       .select({
+        sessionId: upgradeJobs.sessionId,
         resultPathname: upgradeJobs.resultPathname,
         differencePathname: upgradeJobs.differencePathname,
         reportPathname: upgradeJobs.reportPathname,
@@ -648,31 +982,37 @@ export async function listExpiredSessionsForCleanup(limit = 25) {
       .from(upgradeJobs)
       .where(inArray(upgradeJobs.sessionId, expiredSessionIds)),
   ]);
-  const pathnames = new Set(
-    expired.flatMap(({ publicId }) =>
-      (["A", "B"] as const).flatMap((slot) => [
-        capturePathname(publicId, slot, 1),
-        capturePathname(publicId, slot, 2),
-      ]),
-    ),
+  const pathnamesBySession = new Map(
+    expired.map(({ id, publicId }) => [
+      id,
+      new Set(
+        (["A", "B"] as const).flatMap((slot) => [
+          capturePathname(publicId, slot, 1),
+          capturePathname(publicId, slot, 2),
+        ]),
+      ),
+    ]),
   );
-  for (const { pathname } of captureRows) pathnames.add(pathname);
-  for (const { pathname } of grantRows) pathnames.add(pathname);
+  for (const { sessionId, pathname } of captureRows)
+    pathnamesBySession.get(sessionId)?.add(pathname);
+  for (const { sessionId, pathname } of grantRows)
+    pathnamesBySession.get(sessionId)?.add(pathname);
   for (const job of jobRows) {
-    if (job.resultPathname) pathnames.add(job.resultPathname);
-    if (job.differencePathname) pathnames.add(job.differencePathname);
-    if (job.reportPathname) pathnames.add(job.reportPathname);
+    const pathnames = pathnamesBySession.get(job.sessionId);
+    if (job.resultPathname) pathnames?.add(job.resultPathname);
+    if (job.differencePathname) pathnames?.add(job.differencePathname);
+    if (job.reportPathname) pathnames?.add(job.reportPathname);
   }
-  const safeDeleteBefore = now.getTime() - ARTIFACT_WRITE_DRAIN_MS;
-  const sessionIds = expired
-    .filter(({ expiresAt }) => expiresAt.getTime() <= safeDeleteBefore)
-    .map(({ id }) => id);
-  return { sessionIds, pathnames: [...pathnames] };
+  const sessions = expired.map(({ id }) => ({
+    sessionId: id,
+    pathnames: [...(pathnamesBySession.get(id) ?? [])],
+  }));
+  return { sessions, hasMore, oldestExpiredAt };
 }
 
 export async function deleteExpiredSessionRecords(sessionIds: string[]) {
   if (sessionIds.length === 0) return 0;
-  const deleted = await getDatabase()
+  const deleted = await getCleanupDatabase()
     .delete(experimentSessions)
     .where(inArray(experimentSessions.id, sessionIds))
     .returning({ id: experimentSessions.id });
@@ -681,7 +1021,7 @@ export async function deleteExpiredSessionRecords(sessionIds: string[]) {
 
 export async function pruneUsageLedger(retainDays = 35) {
   const before = new Date(Date.now() - retainDays * DAY_MS);
-  const deleted = await getDatabase()
+  const deleted = await getCleanupDatabase()
     .delete(usageLedger)
     .where(lt(usageLedger.updatedAt, before))
     .returning({ id: usageLedger.id });

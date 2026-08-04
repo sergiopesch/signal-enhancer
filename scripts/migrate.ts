@@ -3,6 +3,8 @@ import { readdir, readFile } from "node:fs/promises";
 
 import { neon } from "@neondatabase/serverless";
 
+import { REQUIRED_MIGRATIONS } from "../src/lib/server/migration-manifest";
+
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl)
   throw new Error("DATABASE_URL is required to run migrations.");
@@ -14,6 +16,12 @@ const migrationNames = (await readdir(migrationsUrl))
 
 if (migrationNames.length === 0) {
   throw new Error("No versioned SQL migrations were found.");
+}
+if (
+  migrationNames.join("\n") !==
+  REQUIRED_MIGRATIONS.map((migration) => migration.name).join("\n")
+) {
+  throw new Error("The migration files do not match the release manifest.");
 }
 
 const sql = neon(databaseUrl);
@@ -31,6 +39,14 @@ let migrationCount = 0;
 for (const migrationName of migrationNames) {
   const source = await readFile(new URL(migrationName, migrationsUrl), "utf8");
   const checksum = createHash("sha256").update(source).digest("hex");
+  const expectedChecksum = REQUIRED_MIGRATIONS.find(
+    (migration) => migration.name === migrationName,
+  )?.checksum;
+  if (checksum !== expectedChecksum) {
+    throw new Error(
+      `Migration ${migrationName} does not match the release manifest.`,
+    );
+  }
   const appliedRows = await sql.query(
     `SELECT "checksum" FROM "schema_migrations" WHERE "name" = $1`,
     [migrationName],

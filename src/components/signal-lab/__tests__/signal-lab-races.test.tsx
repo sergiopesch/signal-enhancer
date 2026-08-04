@@ -65,7 +65,12 @@ async function enterInputACapture() {
   const confirmations = await screen.findAllByRole("button", {
     name: "Confirm device",
   });
-  for (const confirmation of confirmations) fireEvent.click(confirmation);
+  for (const confirmation of confirmations) {
+    await waitFor(() =>
+      expect((confirmation as HTMLButtonElement).disabled).toBe(false),
+    );
+    fireEvent.click(confirmation);
+  }
   const begin = screen.getByRole("button", { name: "Begin Input A" });
   await waitFor(() =>
     expect((begin as HTMLButtonElement).disabled).toBe(false),

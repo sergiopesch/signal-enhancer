@@ -4,16 +4,17 @@ This index separates the current product and brand contracts from historical des
 
 ## Start here
 
-| Document                                                   | Authority                                                                                           |
-| ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| [Product specification](PRODUCT_SPEC.md)                   | Canonical journey, claim boundaries, privacy promises, success criteria, and deferred scope         |
-| [Architecture](ARCHITECTURE.md)                            | Deployment topology, data flow, trust boundaries, storage, jobs, quotas, and environment contract   |
-| [Brand research](brand-redesign/BRAND_RESEARCH.md)         | Competitive research, positioning, voice principles, and anti-copy guardrails                       |
-| [Brand System v2](brand-redesign/BRAND_SYSTEM_V2.md)       | Current enhancement-gate identity, palette, typography, layout, interaction, motion, and copy rules |
-| [Brand fidelity ledger](brand-redesign/FIDELITY_LEDGER.md) | Concept-to-code comparison, implementation captures, accessibility, and interaction verification    |
-| [Worker guide](../worker/README.md)                        | FastAPI contract, configuration, validation limits, local checks, container, and HF deployment      |
-| [Security policy](../SECURITY.md)                          | Private reporting, supported version, trust boundaries, secret handling, and data lifetime          |
-| [Contributing](../CONTRIBUTING.md)                         | Issue proposals, the paused code-PR policy, and required quality gates                              |
+| Document                                                         | Authority                                                                                          |
+| ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| [Product specification](PRODUCT_SPEC.md)                         | Canonical journey, claim boundaries, privacy promises, success criteria, and deferred scope        |
+| [Architecture](ARCHITECTURE.md)                                  | Deployment topology, data flow, trust boundaries, storage, jobs, quotas, and environment contract  |
+| [Production runbook](PRODUCTION_RUNBOOK.md)                      | Paid-service decisions, immutable promotion, live verification, cleanup, and rollback              |
+| [Audio model strategy](AUDIO_MODEL_STRATEGY.md)                  | Current Hugging Face model decision, challenger matrix, evaluation gates, and runtime truthfulness |
+| [Xeno Signal design system](alien-redesign/DESIGN_SYSTEM.md)     | Current palette, typography, chamber geometry, motion, responsive rules, and copy locks            |
+| [Xeno Signal fidelity ledger](alien-redesign/FIDELITY_LEDGER.md) | Current concept-to-code comparison and native desktop/mobile browser evidence                      |
+| [Worker guide](../worker/README.md)                              | FastAPI contract, configuration, validation limits, local checks, container, and HF deployment     |
+| [Security policy](../SECURITY.md)                                | Private reporting, supported version, trust boundaries, secret handling, and data lifetime         |
+| [Contributing](../CONTRIBUTING.md)                               | Issue proposals, the paused code-PR policy, and required quality gates                             |
 
 ## Current experience contract
 
@@ -25,21 +26,18 @@ This index separates the current product and brand contracts from historical des
 
 ## Current visual evidence
 
-These PNGs were captured from the current production-mode build at native desktop and mobile viewports. They are implementation evidence, not illustrative mockups.
+These JPEGs were captured from the current build at native desktop and mobile viewports. They are implementation evidence, not illustrative mockups.
 
-| State                     | Capture                                                                         |
-| ------------------------- | ------------------------------------------------------------------------------- |
-| Minimal entry             | [Desktop PNG](brand-redesign/implementation/00-home-desktop.png)                |
-| Minimal entry             | [Mobile viewport PNG](brand-redesign/implementation/00-home-mobile.png)         |
-| Guided-reading setup      | [Desktop PNG](brand-redesign/implementation/01-setup-desktop.png)               |
-| Input A individual review | [Desktop PNG](brand-redesign/implementation/02-reveal-desktop.png)              |
-| Input B individual review | [Desktop PNG](brand-redesign/implementation/02-reveal-input-b-desktop.png)      |
-| Upgrade in progress       | [Desktop PNG](brand-redesign/implementation/03-upgrade-progress-desktop.png)    |
-| Upgrade result            | [Desktop PNG](brand-redesign/implementation/04-upgrade-result-desktop.png)      |
-| Individual review         | [Mobile viewport PNG](brand-redesign/implementation/05-reveal-mobile.png)       |
-| Full responsive document  | [Mobile full-page PNG](brand-redesign/implementation/06-reveal-mobile-full.png) |
+| State                     | Capture                                                                     |
+| ------------------------- | --------------------------------------------------------------------------- |
+| Landing chamber           | [Desktop JPEG](alien-redesign/qa/06-xeno-minimal-home-desktop.jpg)          |
+| Input A individual review | [Desktop JPEG](alien-redesign/qa/07-xeno-minimal-reveal-desktop.jpg)        |
+| Input A individual review | [Mobile viewport JPEG](alien-redesign/qa/08-xeno-minimal-reveal-mobile.jpg) |
+| Input A edge case         | [320 px viewport JPEG](alien-redesign/qa/09-xeno-minimal-reveal-320.jpg)    |
+| Upgrade result            | [Mobile viewport JPEG](alien-redesign/qa/10-xeno-minimal-result-mobile.jpg) |
+| Upgrade result / spectrum | [Desktop JPEG](alien-redesign/qa/11-xeno-minimal-result-desktop.jpg)        |
 
-The coordinated concept set lives in [`brand-redesign/concepts`](brand-redesign/concepts). Concepts establish authored direction; the current implementation and [fidelity ledger](brand-redesign/FIDELITY_LEDGER.md) establish product truth.
+The accepted concept set lives in [`alien-redesign/concepts`](alien-redesign/concepts). Concepts establish authored direction; the current implementation and [Xeno Signal fidelity ledger](alien-redesign/FIDELITY_LEDGER.md) establish product truth.
 
 ## Historical material
 
@@ -47,10 +45,12 @@ The following v1 files remain available for provenance only and are explicitly m
 
 - [Design System v1](DESIGN_SYSTEM.md)
 - [Fidelity ledger v1](FIDELITY_LEDGER.md)
+- [Brand System v2](brand-redesign/BRAND_SYSTEM_V2.md)
+- [Brand fidelity ledger v2](brand-redesign/FIDELITY_LEDGER.md)
 - [`design/`](design) — original concept generation
 - [`implementation/`](implementation) — original implementation captures
 
-Do not use v1 colors, typography, screenshots, or layout decisions for new work. New visual work should follow [Brand System v2](brand-redesign/BRAND_SYSTEM_V2.md) and be checked against the current implementation.
+Do not use the historical colors, typography, screenshots, or layout decisions for new work. New visual work should follow the [Xeno Signal design system](alien-redesign/DESIGN_SYSTEM.md) and be checked against its current [fidelity ledger](alien-redesign/FIDELITY_LEDGER.md).
 
 ## Working agreements
 

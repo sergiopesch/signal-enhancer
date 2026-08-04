@@ -22,7 +22,7 @@ export function safeErrorResponse(error: unknown) {
     JSON.stringify({
       level: "error",
       event: "unhandled_request_error",
-      error: error instanceof Error ? error.message : "unknown",
+      errorType: error instanceof Error ? error.name : "UnknownError",
     }),
   );
   return Response.json(

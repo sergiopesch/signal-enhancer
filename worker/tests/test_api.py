@@ -12,6 +12,7 @@ import pytest
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
+from signal_enhancer_worker.analysis import analyze_signal as analyze_signal_impl
 from signal_enhancer_worker.app import create_app
 from signal_enhancer_worker.config import Settings
 from signal_enhancer_worker.contracts import ReferenceVersion
@@ -44,7 +45,12 @@ def test_health_and_authenticated_version(
         "pipeline_revision": "signal-enhancer-audio/1.0.0",
         "dsp_revision": "restrained-dsp/1.0.0",
         "model_name": "none",
+        "model_repository": None,
         "model_revision": None,
+        "model_checkpoint_sha256": None,
+        "source_repository": None,
+        "source_revision": None,
+        "inference_profile": "dsp-only",
     }
 
 
@@ -85,6 +91,31 @@ def test_analyze_is_deterministic_and_never_returns_urls(
     assert "delta_b_minus_a" in result
     assert "signature=" not in first.text
     assert "url" not in first.text.lower()
+
+
+def test_analyze_calls_input_b_with_only_its_samples_and_sample_rate(
+    monkeypatch: pytest.MonkeyPatch,
+    client_factory: Any,
+    auth_headers: dict[str, str],
+    request_body: dict[str, Any],
+) -> None:
+    calls: list[tuple[int, int]] = []
+
+    def record_analysis(samples: Any, sample_rate: int):
+        calls.append((len(samples), sample_rate))
+        return analyze_signal_impl(samples, sample_rate)
+
+    monkeypatch.setattr("signal_enhancer_worker.service.analyze_signal", record_analysis)
+    body = copy.deepcopy(request_body)
+    body.pop("source")
+    body.pop("outputs")
+
+    with client_factory() as client:
+        response = client.post("/v1/analyze", headers=auth_headers, json=body)
+
+    assert response.status_code == 200, response.text
+    assert len(calls) == 2
+    assert all(sample_count > 0 and sample_rate == 16_000 for sample_count, sample_rate in calls)
 
 
 def test_enhance_uploads_aligned_hashed_artifacts_and_cleans_temp_files(

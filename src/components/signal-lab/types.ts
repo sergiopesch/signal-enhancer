@@ -35,3 +35,14 @@ export type UpgradeEvent = {
   status: "complete" | "active" | "future" | "failed";
   timestamp?: string;
 };
+
+export type UpgradeProvenance = {
+  engine: "resemble";
+  modelName: "resemble-enhance";
+  modelRepository: string;
+  modelRevision: string;
+  checkpointSha256: string;
+  sourceRevision: string;
+  pipelineRevision: string;
+  inferenceProfile: string;
+};

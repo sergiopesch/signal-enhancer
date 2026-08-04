@@ -18,11 +18,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .nvmrc
           cache: npm
+      - run: corepack enable && corepack install
       - run: npm ci
       - run: npm audit --audit-level=high
       - run: npm run format:check
@@ -44,48 +47,20 @@ jobs:
   worker:
     name: Worker quality gate
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 60
+    env:
+      WORKER_IMAGE: local/signal-enhancer-worker:${{ github.sha }}
     steps:
-      - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v9.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
           enable-cache: true
           cache-dependency-glob: worker/uv.lock
       - run: uv lock --directory worker --check
-      - run: uv sync --directory worker --extra dev --extra resemble --frozen
+      - run: uv sync --directory worker --extra dev --frozen
       - run: uv pip check --python worker/.venv/bin/python
-      - name: Smoke-test model dependency imports
-        run: |
-          uv run --directory worker python - <<'PY'
-          import deepspeed
-          import gradio
-          import torch
-          import torchaudio
-          import torchvision
-          from resemble_enhance.enhancer import inference
-          from torchaudio.functional import resample
-          from torchaudio.transforms import MelSpectrogram
-
-          wave = torch.linspace(-0.2, 0.2, 1_600)
-          resampled = resample(wave, 16_000, 44_100)
-          mel = MelSpectrogram(
-              sample_rate=44_100,
-              n_fft=512,
-              hop_length=128,
-              n_mels=32,
-          )(resampled)
-          assert torch.isfinite(mel).all()
-          assert callable(inference.load_enhancer)
-          assert callable(inference.enhance)
-          print(
-              "model dependency smoke passed:",
-              gradio.__version__,
-              torch.__version__,
-              torchaudio.__version__,
-              torchvision.__version__,
-              deepspeed.__version__,
-          )
-          PY
       - name: Audit locked worker dependencies
         run: |
           audit_dir="$(mktemp -d)"
@@ -113,5 +88,161 @@ jobs:
       - run: uv run --directory worker ruff check .
       - run: uv run --directory worker mypy
       - run: uv run --directory worker pytest
-      - name: Build deterministic worker image
-        run: docker build --file worker/Dockerfile --tag signal-enhancer-worker:${GITHUB_SHA} --build-arg SIGNAL_BUILD_REVISION=${GITHUB_SHA} worker
+      - name: Validate non-secret endpoint policy
+        run: |
+          python3 -m unittest discover --start-directory deploy --pattern 'test_*.py'
+          python3 deploy/validate_worker_release.py
+      - name: Build Resemble-enabled production worker image
+        run: |
+          docker build \
+            --platform linux/amd64 \
+            --file worker/Dockerfile \
+            --tag "$WORKER_IMAGE" \
+            --build-arg INSTALL_RESEMBLE=1 \
+            --build-arg SIGNAL_BUILD_REVISION="$GITHUB_SHA" \
+            worker
+      - name: Verify worker image identity and runtime dependencies
+        run: |
+          inspect_file="$(mktemp)"
+          trap 'rm -f "$inspect_file"' EXIT
+          docker image inspect "$WORKER_IMAGE" > "$inspect_file"
+          python3 deploy/validate_worker_release.py \
+            --inspect-json "$inspect_file" \
+            --expected-build-revision "$GITHUB_SHA"
+          docker run --rm --interactive --entrypoint python "$WORKER_IMAGE" - <<'PY'
+          import os
+          import stat
+          from pathlib import Path
+
+          assert os.getuid() == 10_001
+          assert os.getgid() == 10_001
+          runtime_home = Path.home()
+          xdg_cache = Path(os.environ["XDG_CACHE_HOME"])
+          triton_cache = Path(os.environ["TRITON_CACHE_DIR"])
+          temp_root = Path(os.environ["SIGNAL_TMP_ROOT"])
+          assert runtime_home == Path("/var/lib/signal-enhancer")
+          for directory in (runtime_home, xdg_cache, triton_cache, temp_root):
+              assert directory.is_dir()
+              metadata = directory.stat()
+              assert metadata.st_uid == os.getuid()
+              assert metadata.st_gid == os.getgid()
+              assert stat.S_IMODE(metadata.st_mode) == 0o700
+
+          import deepspeed
+          import gradio
+          import torch
+          import torchaudio
+          import torchvision
+          from resemble_enhance.enhancer import inference
+          from torchaudio.functional import resample
+          from torchaudio.transforms import MelSpectrogram
+
+          wave = torch.linspace(-0.2, 0.2, 1_600)
+          resampled = resample(wave, 16_000, 44_100)
+          mel = MelSpectrogram(
+              sample_rate=44_100,
+              n_fft=512,
+              hop_length=128,
+              n_mels=32,
+          )(resampled)
+          assert torch.isfinite(mel).all()
+          assert callable(inference.load_enhancer)
+          assert callable(inference.enhance)
+          print(
+              "production image dependency smoke passed:",
+              gradio.__version__,
+              torch.__version__,
+              torchaudio.__version__,
+              torchvision.__version__,
+              deepspeed.__version__,
+          )
+          PY
+      - name: Smoke-test the worker image HTTP health contract
+        run: |
+          worker_id="$(docker run \
+            --detach \
+            --rm \
+            --publish 127.0.0.1::7860 \
+            --env SIGNAL_ENVIRONMENT=development \
+            --env SIGNAL_ENDPOINT_SECRET=ci-only-not-a-production-secret \
+            --env SIGNAL_ALLOWED_STORAGE_HOSTS=storage.invalid \
+            --env SIGNAL_ENGINE=dsp \
+            "$WORKER_IMAGE")"
+          trap 'docker stop "$worker_id" >/dev/null 2>&1 || true' EXIT
+          host_port="$(docker inspect \
+            --format '{{(index (index .NetworkSettings.Ports "7860/tcp") 0).HostPort}}' \
+            "$worker_id")"
+          ready=0
+          for _ in $(seq 1 30); do
+            if curl --fail --silent "http://127.0.0.1:${host_port}/health" \
+              | python3 -c 'import json, sys; assert json.load(sys.stdin) == {"status": "ready"}'; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          test "$ready" -eq 1
+          docker stop "$worker_id" >/dev/null
+          trap - EXIT
+      - name: Verify the reviewed native-library boundary
+        run: |
+          docker run \
+            --rm \
+            --user 0:0 \
+            --volume "$PWD/deploy/verify_worker_native_boundary.py:/audit/verify_worker_native_boundary.py:ro" \
+            --entrypoint /bin/sh \
+            "$WORKER_IMAGE" \
+            -ceu '
+              inventory=/tmp/signal-enhancer-final-image-elf.json
+              python /audit/verify_worker_native_boundary.py --write-inventory "$inventory"
+              export DEBIAN_FRONTEND=noninteractive
+              apt-get update
+              apt-get install --yes --no-install-recommends --no-upgrade binutils
+              python /audit/verify_worker_native_boundary.py --verify-inventory "$inventory"
+            '
+      - name: Generate production image SBOM
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          image: ${{ env.WORKER_IMAGE }}
+          artifact-name: signal-enhancer-worker-${{ github.sha }}.spdx.json
+          output-file: worker-image.spdx.json
+          format: spdx-json
+          upload-artifact: true
+          upload-artifact-retention: 90
+          upload-release-assets: false
+      - name: Verify production packages are represented in the SBOM
+        run: |
+          python3 - <<'PY'
+          import json
+
+          with open("worker-image.spdx.json", encoding="utf-8") as source:
+              sbom = json.load(source)
+          packages = {
+              package.get("name", "").lower().replace("_", "-")
+              for package in sbom.get("packages", [])
+          }
+          required = {"resemble-enhance", "torch", "torchaudio", "signal-enhancer-worker"}
+          missing = sorted(required - packages)
+          assert not missing, f"production packages missing from SBOM: {', '.join(missing)}"
+          PY
+      - name: Render SBOM-validated exact-package worker VEX
+        run: |
+          python3 deploy/render_worker_vex.py \
+            --policy deploy/worker.openvex.json \
+            --sbom worker-image.spdx.json \
+            --output worker-image.openvex.json
+      - name: Prove exact VEX matching and block high/critical findings
+        run: |
+          bash deploy/verify_worker_vex_scan.sh \
+            worker-image.spdx.json \
+            worker-image.openvex.json \
+            worker-image.grype.json
+      - name: Retain worker VEX and vulnerability report
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: signal-enhancer-worker-${{ github.sha }}.security-evidence
+          path: |
+            worker-image.openvex.json
+            worker-image.grype.json
+          if-no-files-found: error
+          retention-days: 90

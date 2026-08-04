@@ -111,8 +111,7 @@ export async function listAudioInputs(): Promise<AudioInputDevice[]> {
           groupId: device.groupId,
           reportedLabel,
           displayLabel:
-            reportedLabel ||
-            `Audio input ${inputIndex} (browser label unavailable)`,
+            reportedLabel || `Audio input ${inputIndex} · browser unnamed`,
           labelAvailable: reportedLabel.length > 0,
         };
       });

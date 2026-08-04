@@ -21,7 +21,13 @@ from signal_enhancer_worker.artifacts import (
     build_report,
     canonical_json_bytes,
 )
-from signal_enhancer_worker.config import Settings
+from signal_enhancer_worker.config import (
+    DEFAULT_RESEMBLE_CHECKPOINT_SHA256,
+    DEFAULT_RESEMBLE_INFERENCE_PROFILE,
+    DEFAULT_RESEMBLE_MODEL_REPOSITORY,
+    DEFAULT_RESEMBLE_SOURCE_REPOSITORY,
+    Settings,
+)
 from signal_enhancer_worker.contracts import (
     AnalyzeRequest,
     AnalyzeResponse,
@@ -37,7 +43,7 @@ from signal_enhancer_worker.contracts import (
     StageEvent,
     VersionInfo,
 )
-from signal_enhancer_worker.dsp import align_length, resample_linear, restrained_dsp
+from signal_enhancer_worker.dsp import align_length, resample_bandlimited, restrained_dsp
 from signal_enhancer_worker.errors import (
     BusyError,
     ConfigurationError,
@@ -88,7 +94,12 @@ class WorkerRuntime:
             pipeline_revision=self.settings.pipeline_revision,
             dsp_revision=self.settings.dsp_revision,
             model_name="resemble-enhance" if model_enabled else "none",
+            model_repository=DEFAULT_RESEMBLE_MODEL_REPOSITORY if model_enabled else None,
             model_revision=self.settings.resemble_model_revision if model_enabled else None,
+            model_checkpoint_sha256=(DEFAULT_RESEMBLE_CHECKPOINT_SHA256 if model_enabled else None),
+            source_repository=(DEFAULT_RESEMBLE_SOURCE_REPOSITORY if model_enabled else None),
+            source_revision=(self.settings.resemble_source_revision if model_enabled else None),
+            inference_profile=(DEFAULT_RESEMBLE_INFERENCE_PROFILE if model_enabled else "dsp-only"),
         )
 
     async def initialize(self) -> None:
@@ -282,7 +293,7 @@ class WorkerRuntime:
                 timings["model"] = (time.perf_counter() - step_started) * 1000
 
                 restored = await asyncio.to_thread(
-                    resample_linear,
+                    resample_bandlimited,
                     restored,
                     restored_rate,
                     a.metadata.sample_rate_hz,
@@ -298,7 +309,10 @@ class WorkerRuntime:
                 yield _stage(request, 5, ProductStage.polishing_dynamics)
                 step_started = time.perf_counter()
                 dsp_result = await asyncio.to_thread(
-                    restrained_dsp, restored, a.metadata.sample_rate_hz
+                    restrained_dsp,
+                    restored,
+                    a.metadata.sample_rate_hz,
+                    a.samples,
                 )
                 enhanced_bytes = await asyncio.to_thread(
                     encode_pcm16_wav, dsp_result.samples, a.metadata.sample_rate_hz

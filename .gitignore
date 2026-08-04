@@ -9,10 +9,9 @@ tsconfig.tsbuildinfo
 # Vercel
 .vercel/
 
-# environment files
-.env
-.env.local
-.env.*.local
+# environment files (keep only the committed, secret-free template)
+.env*
+!.env.example
 
 # tests and coverage
 coverage/
@@ -26,8 +25,11 @@ test-results/
 worker/.venv/
 worker/.pytest_cache/
 worker/.ruff_cache/
-worker/**/__pycache__/
-worker/**/*.pyc
+**/__pycache__/
+**/*.py[cod]
+
+# local secret material
+*.secrets
 
 # OS/editor
 .DS_Store
