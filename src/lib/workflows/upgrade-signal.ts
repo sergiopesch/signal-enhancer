@@ -53,6 +53,11 @@ type PreparedUpgrade = {
 };
 
 export const UPGRADE_WORKER_MAX_RETRIES = 0;
+export const UPGRADE_WARM_MAX_RETRIES = 3;
+export const UPGRADE_WARM_SCALE_TIMEOUT_SECONDS = 230;
+export const UPGRADE_WARM_REQUEST_TIMEOUT_MS = 240_000;
+export const UPGRADE_INFERENCE_SCALE_TIMEOUT_SECONDS = 60;
+export const UPGRADE_INFERENCE_REQUEST_TIMEOUT_MS = 230_000;
 
 export function upgradeResultCoordinates({
   sessionId,
@@ -287,11 +292,13 @@ async function warmUpgradeEngine(jobId: string) {
     headers: {
       Authorization: `Bearer ${environment.HF_ENDPOINT_TOKEN}`,
       "X-Signal-Endpoint-Secret": environment.HF_ENDPOINT_SHARED_SECRET,
-      "X-Scale-Up-Timeout": "600",
+      "X-Scale-Up-Timeout": String(UPGRADE_WARM_SCALE_TIMEOUT_SECONDS),
     },
     cache: "no-store",
     redirect: "error",
-    signal: AbortSignal.timeout(610_000),
+    // Hobby Fluid functions stop at 300 seconds. Each durable attempt stays
+    // below that ceiling; retries keep polling while HF continues warming.
+    signal: AbortSignal.timeout(UPGRADE_WARM_REQUEST_TIMEOUT_MS),
   });
   if (isRetryableWorkerStatus(response.status)) {
     throw new Error(`Upgrade engine is still warming (${response.status}).`);
@@ -324,6 +331,8 @@ async function warmUpgradeEngine(jobId: string) {
   if (!activeJob) throw new FatalError("This upgrade is no longer active.");
 }
 
+warmUpgradeEngine.maxRetries = UPGRADE_WARM_MAX_RETRIES;
+
 function safeWorkerError(value: unknown) {
   if (!value || typeof value !== "object") return null;
   const object = value as Record<string, unknown>;
@@ -348,14 +357,16 @@ async function invokeUpgradeEngine(prepared: PreparedUpgrade) {
       "X-Signal-Endpoint-Secret": environment.HF_ENDPOINT_SHARED_SECRET,
       Accept: "application/x-ndjson",
       "Content-Type": "application/json",
-      "X-Scale-Up-Timeout": "600",
+      "X-Scale-Up-Timeout": String(UPGRADE_INFERENCE_SCALE_TIMEOUT_SECONDS),
     },
     body: JSON.stringify(prepared.body),
     cache: "no-store",
     redirect: "error",
     // Result grants live for five minutes. Never let a single attempt outlive
     // the immutable input/output URLs that scope it.
-    signal: AbortSignal.timeout(280_000),
+    // Leave enough of Hobby's 300-second step budget for receipt validation,
+    // three Blob HEAD checks, the terminal database write, and progress close.
+    signal: AbortSignal.timeout(UPGRADE_INFERENCE_REQUEST_TIMEOUT_MS),
   });
 
   if (!response.ok) {

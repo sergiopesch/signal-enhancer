@@ -26,13 +26,13 @@ The dual-signal enhancement-gate mark expresses that method: two distinct input 
 
 ## Demo and live mode are intentionally different
 
-|                         | Safe demo — default                                                        | Live cloud path — opt-in                                                                                                |
-| ----------------------- | -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| Processing              | Deterministic analysis and restrained DSP in the browser                   | Durable orchestration plus a protected Hugging Face worker                                                              |
-| Audio movement          | Microphone audio stays in the browser, including after **Upgrade Input A** | Audio uploads only after **Upgrade Input A** is pressed                                                                 |
-| Infrastructure required | None beyond the Next.js app                                                | Neon Postgres, a dedicated private Vercel Blob store, Vercel Workflow, and a custom HF Inference Endpoint               |
-| Result language         | Explicitly labelled local preview; no AI model claim                       | Enhanced playback with disclosed limitations; the backend retains route, version, measurement, and result-hash metadata |
-| Failure posture         | Fully usable prepared individual-track review and local journey            | Fails closed when any required secret or service is absent                                                              |
+|                         | Safe demo — default                                                        | Live cloud path — opt-in                                                                                                                     |
+| ----------------------- | -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Processing              | Deterministic analysis and restrained DSP in the browser                   | Durable orchestration plus a protected Hugging Face worker                                                                                   |
+| Audio movement          | Microphone audio stays in the browser, including after **Upgrade Input A** | Audio uploads only after **Upgrade Input A** is pressed                                                                                      |
+| Infrastructure required | None beyond the Next.js app                                                | Neon Postgres (Free is suitable at tiny traffic), a dedicated private Vercel Blob store, Vercel Workflow, and a custom HF Inference Endpoint |
+| Result language         | Explicitly labelled local preview; no AI model claim                       | Enhanced playback with disclosed limitations; the backend retains route, version, measurement, and result-hash metadata                      |
+| Failure posture         | Fully usable prepared individual-track review and local journey            | Fails closed when any required secret or service is absent                                                                                   |
 
 Making the repository public or deploying the web app does **not** activate live processing. Both `SIGNAL_MODE` and `NEXT_PUBLIC_SIGNAL_MODE` must be set to `live`, and every server-side dependency must pass validation.
 
@@ -134,6 +134,7 @@ Live mode requires all of the following server-side values. Leave them unset in 
 | `HF_ENDPOINT_TOKEN`                                      | Hugging Face gateway bearer token                                |
 | `HF_ENDPOINT_SHARED_SECRET`                              | Independent application-to-worker secret; at least 32 characters |
 | `HF_ENDPOINT_BUILD_REVISION`                             | Exact worker Git commit returned by `/version`                   |
+| `MAX_GLOBAL_JOBS_PER_DAY`, `MAX_ACTIVE_GPU_JOBS`         | Live cost caps; use `5` and `1` for the low-volume Hobby profile |
 
 Generate secrets with a cryptographically secure tool, such as `openssl rand -hex 32`. Never expose a server secret with a `NEXT_PUBLIC_` prefix. Keep `SIGNAL_MODE` and `NEXT_PUBLIC_SIGNAL_MODE` aligned, provision all integrations in the same intended environment, and apply the checked-in versioned migrations in order. The runner discovers every `migrations/NNNN_*.sql` file, verifies its SHA-256 against the migration ledger, and applies each new file atomically:
 
@@ -141,15 +142,29 @@ Generate secrets with a cryptographically secure tool, such as `openssl rand -he
 npm run db:migrate
 ```
 
-Live launch additionally requires an authenticated call to `/api/internal/cleanup` every five minutes so bounded, concurrent deletion can drain a backlog safely. This schedule requires Vercel Pro or Enterprise; do not deploy this live configuration to Hobby. The authenticated `/api/internal/readiness` probe verifies migrations, private Blob authority, and the exact worker build/model contract without returning credentials. Follow the [production runbook](docs/PRODUCTION_RUNBOOK.md) and [worker deployment guide](worker/README.md) before provisioning paid services or promoting an alias.
+The checked-in low-volume profile is a fully interactive live service on a personal,
+non-commercial Vercel Hobby project, not a browser-only simulation. It has no SLA, caps work at
+`MAX_GLOBAL_JOBS_PER_DAY=5` and `MAX_ACTIVE_GPU_JOBS=1`, and schedules authenticated cleanup daily
+for 03:17 UTC (`17 3 * * *`; Hobby may invoke it within that hour). An existing pooled Neon Free `DATABASE_URL` is acceptable for this tiny
+traffic profile. User access expires after 24 hours; with the 15-minute write-drain window and a
+normally running daily schedule, physical Blob and database deletion can occur up to roughly 49
+hours after creation. Each cleanup pass handles at most 25 expired sessions and therefore assumes
+fewer than 25 newly expired sessions per day. If the response reports `backlogRemaining`, invoke
+the authenticated route again manually until the backlog is clear.
+
+For professional, commercial, or higher-volume operation, use Vercel Pro or Enterprise and the
+five-minute cleanup schedule (`*/5 * * * *`). The authenticated `/api/internal/readiness` probe
+verifies migrations, private Blob authority, and the exact worker build/model contract without
+returning credentials. Follow the [production runbook](docs/PRODUCTION_RUNBOOK.md) and [worker
+deployment guide](worker/README.md) before provisioning billable services or promoting an alias.
 
 ## Privacy and security
 
 - No microphone bytes leave the browser until the user presses **Upgrade Input A**; in demo mode they never leave it.
 - Live capture grants are private, object-scoped, non-overwriting, bounded by session expiry, and limited to at most two immutable path attempts per input slot.
 - Live result grants are private, attempt-scoped, non-overwriting, and short-lived.
-- Live sessions, captures, results, and reports expire after 24 hours.
-- Each authenticated cleanup pass waits through a 15-minute post-expiry write-drain window, then deletes every tracked object path before expired database rows cascade.
+- User access to live sessions, captures, results, and reports expires after 24 hours.
+- Each authenticated cleanup pass waits through a 15-minute post-expiry write-drain window, then deletes every tracked object path before expired database rows cascade. Under the daily Hobby schedule, physical deletion can occur up to roughly 49 hours after creation when the low-volume backlog drains normally.
 - Signed URLs, credentials, request bodies, and captured audio are excluded from application logs.
 - Size, duration, MIME, object path, hash, RIFF structure, codec, channel count, and decoded samples are validated at successive trust boundaries.
 - Global daily and active-job capacity is reserved atomically after both captures commit and before the enhancement workflow or inference begins.

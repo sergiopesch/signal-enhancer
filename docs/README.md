@@ -8,7 +8,7 @@ This index separates the current product and brand contracts from historical des
 | ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
 | [Product specification](PRODUCT_SPEC.md)                         | Canonical journey, claim boundaries, privacy promises, success criteria, and deferred scope        |
 | [Architecture](ARCHITECTURE.md)                                  | Deployment topology, data flow, trust boundaries, storage, jobs, quotas, and environment contract  |
-| [Production runbook](PRODUCTION_RUNBOOK.md)                      | Paid-service decisions, immutable promotion, live verification, cleanup, and rollback              |
+| [Production runbook](PRODUCTION_RUNBOOK.md)                      | Deployment-profile decisions, immutable promotion, live verification, cleanup, and rollback        |
 | [Audio model strategy](AUDIO_MODEL_STRATEGY.md)                  | Current Hugging Face model decision, challenger matrix, evaluation gates, and runtime truthfulness |
 | [Xeno Signal design system](alien-redesign/DESIGN_SYSTEM.md)     | Current palette, typography, chamber geometry, motion, responsive rules, and copy locks            |
 | [Xeno Signal fidelity ledger](alien-redesign/FIDELITY_LEDGER.md) | Current concept-to-code comparison and native desktop/mobile browser evidence                      |

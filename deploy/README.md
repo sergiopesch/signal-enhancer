@@ -128,7 +128,17 @@ Vercel will make the product unavailable.
 9. Promote web and worker configuration together only after those gates pass. Retain the previous
    known-good digest for rollback, and roll back by digest rather than rebuilding an old tag.
 
+The low-volume Vercel Hobby profile remains a full interactive live service, but it is valid only
+for personal, non-commercial use and has no SLA. It uses an existing pooled Neon Free connection
+or equivalent, caps work at `MAX_GLOBAL_JOBS_PER_DAY=5` and `MAX_ACTIVE_GPU_JOBS=1`, and schedules
+cleanup daily for 03:17 UTC (`17 3 * * *`; Hobby may invoke it within that hour). Each pass processes at most 25 expired sessions and
+assumes fewer than 25 newly expired sessions per day; manually invoke cleanup again whenever
+`backlogRemaining` is true. User access expires after 24 hours, while physical deletion can occur
+up to roughly 49 hours after creation with the 15-minute write-drain window and normal daily drain.
+Professional, commercial, or higher-volume deployments instead use Vercel Pro or Enterprise and
+the five-minute cleanup schedule (`*/5 * * * *`).
+
 Stop promotion if the endpoint is public, any revision differs, the image uses a tag, the SBOM or
 scan is missing, a VEX statement is broader than an exact reviewed package version, fallback is
-enabled, `/health` cannot load the real model, cleanup is not running hourly or faster, or the
-disposable live journey fails.
+enabled, `/health` cannot load the real model, cleanup does not match the selected profile, the
+Hobby backlog procedure is unowned, or the disposable live journey fails.

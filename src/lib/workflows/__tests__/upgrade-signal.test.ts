@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  UPGRADE_INFERENCE_REQUEST_TIMEOUT_MS,
+  UPGRADE_INFERENCE_SCALE_TIMEOUT_SECONDS,
+  UPGRADE_WARM_MAX_RETRIES,
+  UPGRADE_WARM_REQUEST_TIMEOUT_MS,
+  UPGRADE_WARM_SCALE_TIMEOUT_SECONDS,
   UPGRADE_WORKER_MAX_RETRIES,
   upgradeResultCoordinates,
 } from "@/lib/workflows/upgrade-signal";
@@ -29,5 +34,16 @@ describe("upgrade workflow replay coordinates", () => {
 
   it("forbids automatic retries of a partially uploaded worker attempt", () => {
     expect(UPGRADE_WORKER_MAX_RETRIES).toBe(0);
+  });
+
+  it("keeps every provider request inside the Hobby Fluid step ceiling", () => {
+    expect(UPGRADE_WARM_MAX_RETRIES).toBe(3);
+    expect(UPGRADE_WARM_SCALE_TIMEOUT_SECONDS).toBeLessThan(300);
+    expect(UPGRADE_WARM_REQUEST_TIMEOUT_MS).toBeLessThan(300_000);
+    expect(UPGRADE_INFERENCE_SCALE_TIMEOUT_SECONDS).toBeLessThan(300);
+    expect(UPGRADE_INFERENCE_REQUEST_TIMEOUT_MS).toBeLessThan(300_000);
+    expect(
+      300_000 - UPGRADE_INFERENCE_REQUEST_TIMEOUT_MS,
+    ).toBeGreaterThanOrEqual(60_000);
   });
 });

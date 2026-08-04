@@ -30,6 +30,7 @@ import {
   type AudioAnalysis,
 } from "@/lib/audio";
 import { requestRemoteUpgradeCancellation } from "@/lib/client/upgrade-cancellation";
+import { followUpgradeProgress } from "@/lib/client/upgrade-progress";
 import {
   GUIDED_READING_COUNT_IN_SECONDS,
   GUIDED_READING_DURATION_SECONDS,
@@ -988,51 +989,21 @@ export function SignalLab() {
         }
       };
       assertCurrent();
-      const response = await fetch(eventsUrl, {
-        cache: "no-store",
+      const status = await followUpgradeProgress({
+        eventsUrl,
+        statusUrl: `/api/upgrades/${upgradeId}`,
         signal: abortController.signal,
-      });
-      assertCurrent();
-      if (!response.ok || !response.body)
-        throw new Error("The durable progress stream could not be opened.");
-      const reader = response.body
-        .pipeThrough(new TextDecoderStream())
-        .getReader();
-      let buffer = "";
-      while (true) {
-        const chunk = await reader.read();
-        assertCurrent();
-        if (chunk.done) break;
-        buffer += chunk.value;
-        const lines = buffer.split("\n");
-        buffer = lines.pop() ?? "";
-        for (const line of lines) {
-          if (!line.trim()) continue;
-          const event = JSON.parse(line) as UpgradeEvent;
+        onEvent: (event) => {
+          assertCurrent();
           setUpgradeEvents((current) => [
             ...current.filter((item) => item.sequence !== event.sequence),
             event,
           ]);
-        }
-      }
-      const statusResponse = await fetch(`/api/upgrades/${upgradeId}`, {
-        cache: "no-store",
-        signal: abortController.signal,
+        },
       });
       assertCurrent();
-      const status = (await statusResponse.json()) as {
-        state: string;
-        resultUrl?: string | null;
-        resultSha256?: string | null;
-        routing?: unknown;
-        resultMetadata?: unknown;
-        error?: { message: string } | null;
-      };
-      assertCurrent();
-      if (status.state !== "completed" || !status.resultUrl)
-        throw new Error(
-          status.error?.message ?? "The deeper restoration did not finish.",
-        );
+      if (!status.resultUrl)
+        throw new Error("The deeper restoration returned no result.");
       const provenance = readUpgradeProvenance(
         status.routing,
         status.resultMetadata,

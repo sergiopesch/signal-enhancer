@@ -11,7 +11,8 @@ The planned first live placement is Europe:
 
 - Vercel Functions/Workflow: `dub1` where configurable;
 - Vercel Blob: an EU private store;
-- Neon Postgres through the Vercel Marketplace in an EU region;
+- Neon Postgres in an EU region; an existing pooled Neon Free connection is acceptable for the
+  low-volume profile, while the Vercel Marketplace integration remains optional;
 - Hugging Face Inference Endpoint: AWS `eu-west-1`.
 
 ## Request and data flow
@@ -95,7 +96,14 @@ Use a dedicated private Vercel Blob store. Signed URLs introduced in 2026 allow 
 - Result artifacts remain immutable per processing attempt; overwrite and random suffixes are disabled.
 - An authoritative `HEAD` verifies committed size and any returned MIME metadata before the job starts; the worker then performs bounded RIFF/WAVE validation before inference.
 - Cleanup waits through a 15-minute post-expiry write-drain window, then enumerates both bounded A/B attempt paths, every stored grant/commit path, and every persisted result, report, and derived-artifact path. Database discovery rows cascade only after every tracked object is deleted, so a later cleanup pass can retry interrupted deletion safely.
-- Live launch uses a five-minute scheduler with bounded concurrent deletion and backlog reporting. The safe Hobby demo uses daily no-op housekeeping because it stores no server audio.
+- The personal, non-commercial low-volume Hobby profile is a full interactive live service, not a
+  no-op demo. It schedules authenticated cleanup daily for 03:17 UTC (`17 3 * * *`; Hobby may
+  invoke it within that hour), processes at most 25 expired sessions per pass, and assumes fewer than 25 newly expired sessions per day. If
+  `backlogRemaining` is true, an operator invokes cleanup again manually until it is false. User
+  access expires after 24 hours; with the 15-minute write-drain window and normal daily drain,
+  physical deletion can occur up to roughly 49 hours after creation. Hobby has no SLA.
+- Professional, commercial, or higher-volume operation uses Vercel Pro or Enterprise with the
+  five-minute scheduler (`*/5 * * * *`), bounded concurrent deletion, and backlog alerting.
 - Never log signed URLs, Blob tokens, or request bodies.
 
 Initial maximum WAV size is 4 MiB for a 20-second mono 48 kHz PCM16 clip plus safe overhead. Server validation rejects non-WAV content even when MIME and filename appear valid.
@@ -231,7 +239,8 @@ Its large image, broad dependency surface, checkpoint attribution requirements, 
 - Session creation is bounded per coarse network hash under an advisory lock, with the Vercel firewall as an additional live control.
 - Capture grants are issued only after session ownership checks and are limited to two immutable path attempts per slot. Both captures upload and commit before job reservation.
 - After both commits, Postgres atomically reserves the session's single job under the daily and active-capacity lock before the workflow or inference begins.
-- Application defaults: 100 global jobs/day and one active GPU job for one replica.
+- Low-volume Hobby limits: five global jobs/day and one active GPU job for one replica. A
+  professional profile may raise the daily cap only after cost and load evidence.
 - Vercel WAF rules are introduced log-first, then tested in preview, then published by the owner.
 - Worker warming happens only inside the already-reserved durable job, so it cannot bypass the daily or active-job capacity checks.
 - HF endpoint max replicas stays at one during preview.
