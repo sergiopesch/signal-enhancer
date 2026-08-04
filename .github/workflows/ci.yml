@@ -184,6 +184,22 @@ jobs:
           test "$ready" -eq 1
           docker stop "$worker_id" >/dev/null
           trap - EXIT
+      - name: Verify the reviewed native-library boundary
+        run: |
+          docker run \
+            --rm \
+            --user 0:0 \
+            --volume "$PWD/deploy/verify_worker_native_boundary.py:/audit/verify_worker_native_boundary.py:ro" \
+            --entrypoint /bin/sh \
+            "$WORKER_IMAGE" \
+            -ceu '
+              inventory=/tmp/signal-enhancer-final-image-elf.json
+              python /audit/verify_worker_native_boundary.py --write-inventory "$inventory"
+              export DEBIAN_FRONTEND=noninteractive
+              apt-get update
+              apt-get install --yes --no-install-recommends --no-upgrade binutils
+              python /audit/verify_worker_native_boundary.py --verify-inventory "$inventory"
+            '
       - name: Generate production image SBOM
         uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
         with:
@@ -209,12 +225,24 @@ jobs:
           missing = sorted(required - packages)
           assert not missing, f"production packages missing from SBOM: {', '.join(missing)}"
           PY
-      - name: Block high and critical image vulnerabilities
-        uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2 # v7.4.0
+      - name: Render SBOM-validated exact-package worker VEX
+        run: |
+          python3 deploy/render_worker_vex.py \
+            --policy deploy/worker.openvex.json \
+            --sbom worker-image.spdx.json \
+            --output worker-image.openvex.json
+      - name: Prove exact VEX matching and block high/critical findings
+        run: |
+          bash deploy/verify_worker_vex_scan.sh \
+            worker-image.spdx.json \
+            worker-image.openvex.json \
+            worker-image.grype.json
+      - name: Retain worker VEX and vulnerability report
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          sbom: worker-image.spdx.json
-          fail-build: true
-          severity-cutoff: high
-          only-fixed: false
-          output-format: table
-          cache-db: true
+          name: signal-enhancer-worker-${{ github.sha }}.security-evidence
+          path: |
+            worker-image.openvex.json
+            worker-image.grype.json
+          if-no-files-found: error
+          retention-days: 90

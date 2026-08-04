@@ -33,12 +33,18 @@ decisions, not automated repository steps.
 2. Require a green GitHub Actions run for that exact commit. It must include the web audit,
    formatting, lint, typecheck, unit tests, production build, desktop/mobile browser journeys,
    worker audit/tests, the real Resemble-enabled image build, image identity checks, SPDX SBOM,
-   and a blocking high/critical image scan.
+   reviewed version-scoped component policy, image-associated exact-package VEX,
+   native-boundary proof, a package-version mismatch test, and a blocking high/critical image
+   scan. Retain the rendered VEX and Grype JSON report alongside the SBOM. A new CVE, changed
+   package version, or changed reviewed source/native boundary must remain blocking. A different
+   image digest receives a distinct document ID and recorded image PURL; Grype's SPDX scan itself
+   enforces exact package/CVE PURLs rather than root-image identity.
 3. Publish the worker image from that commit, resolve its registry manifest digest, pull the
    digest back, and repeat the SBOM/scan and label validation. Follow
    [`../deploy/README.md`](../deploy/README.md); never promote a tag.
-4. Retain the exact web commit, worker digest, SBOM, scan result, model commit, and migration list
-   in the release record. Retain the previous known-good web commit and worker digest for rollback.
+4. Retain the exact web commit, worker digest, SBOM, VEX, scan result, model commit, and migration
+   list in the release record. Retain the previous known-good web commit and worker digest for
+   rollback.
 
 ## 3. Provision the worker without exposing secrets
 

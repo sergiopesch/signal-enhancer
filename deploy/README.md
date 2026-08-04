@@ -21,9 +21,19 @@ python3 deploy/validate_worker_release.py
 The worker quality gate builds `worker/Dockerfile` with `INSTALL_RESEMBLE=1` and the full Git SHA.
 It then verifies the pinned model labels, non-root user, Linux AMD64 platform, runtime imports,
 TorchAudio compatibility, and the development-mode HTTP health contract. The same local image is
-catalogued as SPDX JSON and scanned; any high or critical vulnerability fails CI. The SBOM is
-retained as a workflow artifact for 90 days and must also be copied into the durable release
-record before promotion.
+catalogued as SPDX JSON and scanned; any unreviewed high or critical vulnerability fails CI.
+`worker.openvex.json` holds narrow package-version/CVE assessments for code paths proven absent
+from this worker. CI refuses a missing/changed component or reviewed source-boundary hash, records
+the exact OCI digest from that build's SBOM in a distinct rendered document, and retains the VEX
+and Grype JSON report. Because Grype reconstructs package identity but not root-image identity from
+SPDX JSON, suppression is enforced on each exact CVE/package-version PURL; the image digest is
+immutable issuance evidence rather than the scanner's matching key. CI proves both positive
+matching and a deliberately changed package version that must remain active. A new CVE, package
+version, architecture, or unproven source/native boundary is not suppressed.
+
+SoundFile 0.13.1's Linux wheel also bundles libsndfile 1.2.2 and prefers that copy over the Debian
+library. The CVE-2026-37555 assessment therefore pins both package PURLs and relies on the tested
+PCM/float-only parser boundary; removing the Debian package alone is not remediation.
 
 CI cannot prove that Hugging Face mounted the checkpoint, that the selected L4 exposes CUDA, or
 that a published registry digest contains the bytes CI scanned. Those remain promotion gates.
@@ -67,9 +77,13 @@ Vercel will make the product unavailable.
 
 ## Safe promotion sequence
 
-1. Require a green CI run for the exact full Git SHA. Review and retain its worker SBOM. Do not
-   waive high or critical scan findings without a reviewed, expiring exception and compensating
-   evidence.
+1. Require a green CI run for the exact full Git SHA. Review and retain its worker SBOM, exact
+   package-scoped VEX document with its associated image digest, and Grype report. Do not add or
+   broaden a high/critical VEX statement
+   without primary-source evidence, a tested execution boundary, and an exact versioned package
+   PURL. Reassess all Python statements when Python 3.12.14 (or another official 3.12 security
+   release) is available, and every statement whenever its package, native boundary, or base image
+   changes.
 2. Build from that SHA with `INSTALL_RESEMBLE=1`, push to the approved registry, and resolve the
    registry's manifest digest. The exact package must be anonymously readable so Hugging Face can
    pull it; the publisher logs out and proves this before continuing. A first GHCR publication may
@@ -115,5 +129,6 @@ Vercel will make the product unavailable.
    known-good digest for rollback, and roll back by digest rather than rebuilding an old tag.
 
 Stop promotion if the endpoint is public, any revision differs, the image uses a tag, the SBOM or
-scan is missing, fallback is enabled, `/health` cannot load the real model, cleanup is not running
-hourly or faster, or the disposable live journey fails.
+scan is missing, a VEX statement is broader than an exact reviewed package version, fallback is
+enabled, `/health` cannot load the real model, cleanup is not running hourly or faster, or the
+disposable live journey fails.

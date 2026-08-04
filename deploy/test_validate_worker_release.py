@@ -85,6 +85,8 @@ class WorkerReleaseValidationTests(unittest.TestCase):
                     },
                     "ExposedPorts": {"7860/tcp": {}},
                     "Env": [
+                        "LANG=C.UTF-8",
+                        "LC_ALL=C.UTF-8",
                         "HOME=/var/lib/signal-enhancer",
                         "XDG_CACHE_HOME=/var/lib/signal-enhancer/cache",
                         "TRITON_CACHE_DIR=/var/lib/signal-enhancer/cache/triton",
@@ -111,6 +113,8 @@ class WorkerReleaseValidationTests(unittest.TestCase):
         environment = inspect[0]["Config"]["Env"]
         self.assertIsInstance(environment, list)
         for required in (
+            "LANG=C.UTF-8",
+            "LC_ALL=C.UTF-8",
             "HOME=/var/lib/signal-enhancer",
             "XDG_CACHE_HOME=/var/lib/signal-enhancer/cache",
             "TRITON_CACHE_DIR=/var/lib/signal-enhancer/cache/triton",

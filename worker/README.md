@@ -211,8 +211,15 @@ TorchAudio operations inside that image, exercises its HTTP health contract, emi
 SBOM, and blocks high or critical image vulnerabilities. It also audits every registry package
 from a hash-locked export. The Resemble source distribution is not represented in PyPI's advisory
 database; CI therefore asserts its exact Git revision before excluding that single line from the
-registry audit. Changing the base image, source revision, model revision, or checkpoint requires a
-fresh image build, SBOM, vulnerability scan, source review, and GPU checkpoint-load test.
+registry audit. The image scan starts from the reviewed, version-scoped OpenVEX component policy
+in `deploy/worker.openvex.json`, verifies every component against the SBOM, and renders statements
+with exact package-version products plus the SBOM's immutable image PURL as issuance evidence. It
+also proves the locale and native-symbol boundaries used by the glibc assessments, compares every
+high/critical baseline match with the exact reviewed CVE/PURL pairs, and confirms a deliberately
+changed Python version remains active. These controls do not suppress new CVEs, changed packages,
+or a changed reviewed execution boundary. Changing the base image, source revision, model
+revision, checkpoint, native audit, or any VEX package requires a fresh image build, SBOM,
+vulnerability scan, source review, and GPU checkpoint-load test.
 
 CI deliberately neither publishes an image nor updates an endpoint. Follow the
 [worker release runbook](../deploy/README.md) for the remaining approval, registry, digest,

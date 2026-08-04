@@ -2,7 +2,7 @@
 ARG INSTALL_RESEMBLE=1
 
 # Keep the readable security-release tag while pinning the exact multi-platform image index.
-FROM --platform=linux/amd64 python:3.12.13-slim-bookworm@sha256:d50fb7611f86d04a3b0471b46d7557818d88983fc3136726336b2a4c657aa30b AS builder
+FROM --platform=linux/amd64 python:3.12.13-slim-trixie@sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de AS builder
 
 ARG INSTALL_RESEMBLE
 
@@ -31,13 +31,15 @@ RUN if [ "$INSTALL_RESEMBLE" = "1" ]; then \
       uv sync --frozen --no-dev --no-editable; \
     fi
 
-FROM --platform=linux/amd64 python:3.12.13-slim-bookworm@sha256:d50fb7611f86d04a3b0471b46d7557818d88983fc3136726336b2a4c657aa30b AS runtime
+FROM --platform=linux/amd64 python:3.12.13-slim-trixie@sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de AS runtime
 
 ARG INSTALL_RESEMBLE
 ARG SIGNAL_BUILD_REVISION=dev
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
+    LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8 \
     HOME=/var/lib/signal-enhancer \
     XDG_CACHE_HOME=/var/lib/signal-enhancer/cache \
     TRITON_CACHE_DIR=/var/lib/signal-enhancer/cache/triton \

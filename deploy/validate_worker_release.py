@@ -215,6 +215,8 @@ def validate_inspect(document: Any, policy: Any, build_revision: str) -> None:
             raise ReleaseValidationError("worker image environment entries are invalid")
         parsed_environment[name] = value
     required_environment = {
+        "LANG": "C.UTF-8",
+        "LC_ALL": "C.UTF-8",
         "HOME": "/var/lib/signal-enhancer",
         "XDG_CACHE_HOME": "/var/lib/signal-enhancer/cache",
         "TRITON_CACHE_DIR": "/var/lib/signal-enhancer/cache/triton",
