@@ -4,14 +4,18 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 describe("cleanup deployment schedule", () => {
-  it("runs every five minutes so cleanup can drain a bounded backlog", () => {
+  it("uses the bounded low-volume Hobby retention profile", () => {
     const configuration = JSON.parse(
       readFileSync(resolve(process.cwd(), "vercel.json"), "utf8"),
-    ) as { crons?: Array<{ path?: string; schedule?: string }> };
+    ) as {
+      fluid?: boolean;
+      crons?: Array<{ path?: string; schedule?: string }>;
+    };
 
+    expect(configuration.fluid).toBe(true);
     expect(configuration.crons).toContainEqual({
       path: "/api/internal/cleanup",
-      schedule: "*/5 * * * *",
+      schedule: "17 3 * * *",
     });
   });
 });
