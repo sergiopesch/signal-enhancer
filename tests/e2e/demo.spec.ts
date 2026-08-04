@@ -37,6 +37,93 @@ async function openPreparedReview(page: Page) {
   ).toBeVisible();
 }
 
+test("stage exits are inert and focus follows the incoming stage", async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "chromium",
+    "One transition lifecycle audit is sufficient.",
+  );
+
+  await openPreparedReview(page);
+  await page
+    .getByRole("button", { name: "Repeat both captures" })
+    .evaluate((repeatButton) => {
+      const scene = repeatButton.closest<HTMLElement>("[data-scene-presence]");
+      if (!scene) throw new Error("The reveal scene was not found.");
+      const samples: Array<{
+        hidden: string | null;
+        inert: boolean;
+        pointerEvents: string;
+        presence: string | null;
+      }> = [];
+      const record = () => {
+        samples.push({
+          hidden: scene.getAttribute("aria-hidden"),
+          inert: scene.hasAttribute("inert"),
+          pointerEvents: getComputedStyle(scene).pointerEvents,
+          presence: scene.getAttribute("data-scene-presence"),
+        });
+      };
+      const observer = new MutationObserver(record);
+      observer.observe(scene, {
+        attributes: true,
+        attributeFilter: [
+          "aria-hidden",
+          "data-scene-presence",
+          "inert",
+          "style",
+        ],
+      });
+      record();
+      Object.defineProperty(globalThis, "__signalSceneExitAudit", {
+        configurable: true,
+        value: { observer, samples },
+      });
+    });
+
+  await page.getByRole("button", { name: "Upgrade Input A" }).click();
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const audit = (
+          globalThis as typeof globalThis & {
+            __signalSceneExitAudit: {
+              observer: MutationObserver;
+              samples: Array<{
+                hidden: string | null;
+                inert: boolean;
+                pointerEvents: string;
+                presence: string | null;
+              }>;
+            };
+          }
+        ).__signalSceneExitAudit;
+        return audit.samples.some(
+          (sample) =>
+            sample.presence === "exiting" &&
+            sample.inert &&
+            sample.hidden === "true" &&
+            sample.pointerEvents === "none",
+        );
+      }),
+    )
+    .toBe(true);
+
+  const incomingHeading = page.getByRole("heading", {
+    name: "Reshaping the signal.",
+  });
+  await expect(incomingHeading).toBeVisible();
+  await expect(incomingHeading).toBeFocused();
+  await page.evaluate(() => {
+    (
+      globalThis as typeof globalThis & {
+        __signalSceneExitAudit: { observer: MutationObserver };
+      }
+    ).__signalSceneExitAudit.observer.disconnect();
+  });
+});
+
 function visibleSignalPlot(page: Page) {
   return page.locator(".signal-plot:visible");
 }

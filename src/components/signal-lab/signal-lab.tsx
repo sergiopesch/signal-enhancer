@@ -7,9 +7,16 @@ import {
   LazyMotion,
   m,
   MotionConfig,
+  useIsPresent,
 } from "motion/react";
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 
 import { LabAtmosphere } from "@/components/immersive/lab-atmosphere";
 import {
@@ -73,6 +80,36 @@ type PlaybackGroup = {
   startedAt: number;
   offset: number;
 };
+
+type LabSceneProps = {
+  children: ReactNode;
+  onMount: (node: HTMLDivElement | null) => void;
+  sceneKey: string;
+};
+
+function LabScene({ children, onMount, sceneKey }: LabSceneProps) {
+  const isPresent = useIsPresent();
+
+  return (
+    <m.div
+      ref={onMount}
+      data-scene-key={sceneKey}
+      data-scene-presence={isPresent ? "active" : "exiting"}
+      aria-hidden={isPresent ? undefined : true}
+      inert={!isPresent}
+      initial="enter"
+      animate="active"
+      exit="exit"
+      variants={LAB_STAGE_VARIANTS}
+      style={{
+        pointerEvents: isPresent ? "auto" : "none",
+        width: "100%",
+      }}
+    >
+      {children}
+    </m.div>
+  );
+}
 
 function abortableDelay(milliseconds: number, signal: AbortSignal) {
   return new Promise<void>((resolve, reject) => {
@@ -303,6 +340,7 @@ export function SignalLab() {
     stage === "Upgrade" ? `${stage}-${upgradeState}` : stage,
   );
   const previousCapturePhaseRef = useRef<CapturePhase>(capturePhase);
+  const sceneFocusFrameRef = useRef<number | null>(null);
   const objectUrlsRef = useRef(new Set<string>());
 
   const ownRecord = useCallback((record: CaptureRecord) => {
@@ -341,18 +379,24 @@ export function SignalLab() {
 
   const sceneKey = stage === "Upgrade" ? `${stage}-${upgradeState}` : stage;
 
-  useEffect(() => {
-    if (previousSceneRef.current === sceneKey) return;
-    previousSceneRef.current = sceneKey;
-    const frame = window.requestAnimationFrame(() => {
-      document.documentElement.scrollTop = 0;
-      document.body.scrollTop = 0;
-      appShellRef.current
-        ?.querySelector<HTMLElement>("main .stage h1, main .fault-inline h1")
+  const focusSceneOnMount = useCallback((node: HTMLDivElement | null) => {
+    if (!node) return;
+    const mountedSceneKey = node.dataset.sceneKey;
+    if (!mountedSceneKey || previousSceneRef.current === mountedSceneKey)
+      return;
+    previousSceneRef.current = mountedSceneKey;
+    if (sceneFocusFrameRef.current !== null)
+      window.cancelAnimationFrame(sceneFocusFrameRef.current);
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+    sceneFocusFrameRef.current = window.requestAnimationFrame(() => {
+      sceneFocusFrameRef.current = null;
+      if (!node.isConnected) return;
+      node
+        .querySelector<HTMLElement>(".stage h1, .fault-inline h1")
         ?.focus({ preventScroll: true });
     });
-    return () => window.cancelAnimationFrame(frame);
-  }, [sceneKey]);
+  }, []);
 
   useEffect(() => {
     const previousPhase = previousCapturePhaseRef.current;
@@ -450,6 +494,8 @@ export function SignalLab() {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
+      if (sceneFocusFrameRef.current !== null)
+        window.cancelAnimationFrame(sceneFocusFrameRef.current);
       const activeUpgradeId = upgradeIdRef.current;
       if (SIGNAL_MODE === "live" && activeUpgradeId) {
         requestRemoteUpgradeCancellation(activeUpgradeId);
@@ -1168,6 +1214,13 @@ export function SignalLab() {
   }, [resetExperiment]);
 
   const repeatCaptures = useCallback(() => {
+    const activeUpgradeId = upgradeIdRef.current;
+    upgradeSequenceRef.current += 1;
+    upgradeAbortRef.current?.abort();
+    upgradeAbortRef.current = null;
+    upgradeIdRef.current = null;
+    if (SIGNAL_MODE === "live" && activeUpgradeId)
+      requestRemoteUpgradeCancellation(activeUpgradeId);
     stopPlayback();
     releaseRecord(captureA);
     releaseRecord(captureB);
@@ -1275,13 +1328,10 @@ export function SignalLab() {
           <main>
             <ExperimentStepper stage={stage} />
             <AnimatePresence initial={false} mode="wait">
-              <m.div
+              <LabScene
                 key={sceneKey}
-                initial="enter"
-                animate="active"
-                exit="exit"
-                variants={LAB_STAGE_VARIANTS}
-                style={{ width: "100%" }}
+                sceneKey={sceneKey}
+                onMount={focusSceneOnMount}
               >
                 {stage === "Reference" ? (
                   <ReferenceStage
@@ -1383,7 +1433,7 @@ export function SignalLab() {
                     onReset={resetExperiment}
                   />
                 ) : null}
-              </m.div>
+              </LabScene>
             </AnimatePresence>
           </main>
           <footer className="site-footer">
