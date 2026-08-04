@@ -203,8 +203,26 @@ def validate_inspect(document: Any, policy: Any, build_revision: str) -> None:
     )
     if "7860/tcp" not in field(image, "Config", "ExposedPorts"):
         raise ReleaseValidationError("worker image does not expose port 7860/tcp")
-    if f"SIGNAL_BUILD_REVISION={build_revision}" not in field(image, "Config", "Env"):
-        raise ReleaseValidationError("worker image build revision environment is missing")
+    image_environment = field(image, "Config", "Env")
+    if not isinstance(image_environment, list) or not all(
+        isinstance(item, str) for item in image_environment
+    ):
+        raise ReleaseValidationError("worker image environment has an unexpected shape")
+    parsed_environment: dict[str, str] = {}
+    for item in image_environment:
+        name, separator, value = item.partition("=")
+        if not separator or not ENVIRONMENT_NAME.fullmatch(name) or name in parsed_environment:
+            raise ReleaseValidationError("worker image environment entries are invalid")
+        parsed_environment[name] = value
+    required_environment = {
+        "HOME": "/var/lib/signal-enhancer",
+        "XDG_CACHE_HOME": "/var/lib/signal-enhancer/cache",
+        "TRITON_CACHE_DIR": "/var/lib/signal-enhancer/cache/triton",
+        "SIGNAL_TMP_ROOT": "/tmp/signal-enhancer",  # noqa: S108 - dedicated 0700 dir
+        "SIGNAL_BUILD_REVISION": build_revision,
+    }
+    if any(parsed_environment.get(name) != value for name, value in required_environment.items()):
+        raise ReleaseValidationError("worker image required runtime environment is missing")
     health_test = field(image, "Config", "Healthcheck", "Test")
     if not isinstance(health_test, list) or not any(
         "http://127.0.0.1:7860/health" in item for item in health_test if isinstance(item, str)

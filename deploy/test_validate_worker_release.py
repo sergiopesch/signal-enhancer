@@ -9,6 +9,7 @@ from validate_worker_release import (
     load_json,
     validate_endpoint_snapshot,
     validate_image_reference,
+    validate_inspect,
     validate_policy,
 )
 
@@ -60,8 +61,85 @@ class WorkerReleaseValidationTests(unittest.TestCase):
             },
         }
 
+    def image_inspect(self) -> list[dict[str, object]]:
+        endpoint_policy = self.policy["endpoint"]
+        build_revision = "a" * 40
+        return [
+            {
+                "Os": "linux",
+                "Architecture": "amd64",
+                "Config": {
+                    "User": "10001:10001",
+                    "Labels": {
+                        "org.opencontainers.image.revision": build_revision,
+                        "io.signal-enhancer.resemble-installed": "1",
+                        "io.signal-enhancer.resemble-source-revision": endpoint_policy["runtime"][
+                            "plainEnvironment"
+                        ]["SIGNAL_RESEMBLE_SOURCE_REVISION"],
+                        "io.signal-enhancer.resemble-model-revision": endpoint_policy["model"][
+                            "revision"
+                        ],
+                        "io.signal-enhancer.resemble-checkpoint-sha256": endpoint_policy["model"][
+                            "checkpointSha256"
+                        ],
+                    },
+                    "ExposedPorts": {"7860/tcp": {}},
+                    "Env": [
+                        "HOME=/var/lib/signal-enhancer",
+                        "XDG_CACHE_HOME=/var/lib/signal-enhancer/cache",
+                        "TRITON_CACHE_DIR=/var/lib/signal-enhancer/cache/triton",
+                        "SIGNAL_TMP_ROOT=/tmp/signal-enhancer",
+                        f"SIGNAL_BUILD_REVISION={build_revision}",
+                    ],
+                    "Healthcheck": {
+                        "Test": [
+                            "CMD-SHELL",
+                            "check http://127.0.0.1:7860/health",
+                        ]
+                    },
+                },
+            }
+        ]
+
     def test_checked_in_policy_is_valid(self) -> None:
         validate_policy(self.policy)
+
+    def test_worker_image_requires_the_runtime_cache_environment_contract(self) -> None:
+        inspect = self.image_inspect()
+        validate_inspect(inspect, self.policy, "a" * 40)
+
+        environment = inspect[0]["Config"]["Env"]
+        self.assertIsInstance(environment, list)
+        for required in (
+            "HOME=/var/lib/signal-enhancer",
+            "XDG_CACHE_HOME=/var/lib/signal-enhancer/cache",
+            "TRITON_CACHE_DIR=/var/lib/signal-enhancer/cache/triton",
+            "SIGNAL_TMP_ROOT=/tmp/signal-enhancer",
+        ):
+            candidate = copy.deepcopy(inspect)
+            candidate_environment = candidate[0]["Config"]["Env"]
+            self.assertIsInstance(candidate_environment, list)
+            candidate_environment.remove(required)
+            with (
+                self.subTest(required=required),
+                self.assertRaises(ReleaseValidationError),
+            ):
+                validate_inspect(candidate, self.policy, "a" * 40)
+
+    def test_worker_image_rejects_shadowed_or_wrong_runtime_cache_environment(self) -> None:
+        for replacement, append in (
+            ("HOME=/tmp", False),
+            ("HOME=/tmp", True),
+        ):
+            candidate = self.image_inspect()
+            environment = candidate[0]["Config"]["Env"]
+            self.assertIsInstance(environment, list)
+            if append:
+                environment.append(replacement)
+            else:
+                environment[environment.index("HOME=/var/lib/signal-enhancer")] = replacement
+            with self.subTest(duplicate=append), self.assertRaises(ReleaseValidationError):
+                validate_inspect(candidate, self.policy, "a" * 40)
 
     def test_only_immutable_lowercase_digest_references_are_accepted(self) -> None:
         validate_image_reference(VALID_IMAGE)

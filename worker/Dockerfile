@@ -38,6 +38,9 @@ ARG SIGNAL_BUILD_REVISION=dev
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
+    HOME=/var/lib/signal-enhancer \
+    XDG_CACHE_HOME=/var/lib/signal-enhancer/cache \
+    TRITON_CACHE_DIR=/var/lib/signal-enhancer/cache/triton \
     SIGNAL_BUILD_REVISION=${SIGNAL_BUILD_REVISION} \
     SIGNAL_TMP_ROOT=/tmp/signal-enhancer \
     PATH="/app/.venv/bin:${PATH}"
@@ -58,9 +61,13 @@ RUN apt-get update \
     && apt-get install --yes --no-install-recommends ca-certificates libsndfile1 \
     && rm -rf /var/lib/apt/lists/* \
     && addgroup --system --gid 10001 signal \
-    && adduser --system --uid 10001 --ingroup signal --home /nonexistent --no-create-home signal \
-    && mkdir -p /tmp/signal-enhancer \
-    && chown 10001:10001 /tmp/signal-enhancer
+    && adduser --system --uid 10001 --ingroup signal \
+      --home /var/lib/signal-enhancer --no-create-home signal \
+    && install -d --owner=10001 --group=10001 --mode=0700 \
+      /var/lib/signal-enhancer \
+      /var/lib/signal-enhancer/cache \
+      /var/lib/signal-enhancer/cache/triton \
+      /tmp/signal-enhancer
 
 COPY --from=builder /app/.venv /app/.venv
 

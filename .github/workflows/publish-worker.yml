@@ -95,6 +95,22 @@ jobs:
         run: |
           docker run --rm --interactive --entrypoint python "$PUBLISHED_IMAGE" - <<'PY'
           import os
+          import stat
+          from pathlib import Path
+
+          assert os.getuid() == 10_001
+          assert os.getgid() == 10_001
+          runtime_home = Path.home()
+          xdg_cache = Path(os.environ["XDG_CACHE_HOME"])
+          triton_cache = Path(os.environ["TRITON_CACHE_DIR"])
+          temp_root = Path(os.environ["SIGNAL_TMP_ROOT"])
+          assert runtime_home == Path("/var/lib/signal-enhancer")
+          for directory in (runtime_home, xdg_cache, triton_cache, temp_root):
+              assert directory.is_dir()
+              metadata = directory.stat()
+              assert metadata.st_uid == os.getuid()
+              assert metadata.st_gid == os.getgid()
+              assert stat.S_IMODE(metadata.st_mode) == 0o700
 
           import deepspeed
           import gradio
@@ -105,7 +121,6 @@ jobs:
           from torchaudio.functional import resample
           from torchaudio.transforms import MelSpectrogram
 
-          assert os.getuid() == 10_001
           wave = torch.linspace(-0.2, 0.2, 1_600)
           resampled = resample(wave, 16_000, 44_100)
           mel = MelSpectrogram(
