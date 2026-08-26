@@ -57,6 +57,9 @@
     "brace-expansion@^1.1.0": "https://registry.npmjs.org/brace-expansion/-/brace-expansion-1.1.18.tgz",
     "brace-expansion@^2.0.0": "https://registry.npmjs.org/brace-expansion/-/brace-expansion-2.1.4.tgz",
     "brace-expansion@^5.0.0": "https://registry.npmjs.org/brace-expansion/-/brace-expansion-5.0.9.tgz",
+    "js-yaml@^4.0.0": "4.3.1",
+    "nanoid@^3.0.0": "3.3.18",
+    "nanoid@^5.0.0": "5.1.16",
     "postcss": "8.5.23",
     "undici@^7.0.0": "https://registry.npmjs.org/undici/-/undici-7.29.0.tgz",
     "sharp": "0.35.0"
