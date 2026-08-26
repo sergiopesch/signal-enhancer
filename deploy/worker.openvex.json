@@ -17,7 +17,7 @@
       "deploy/verify_worker_vex_results.py": "795f138898c3f601111eff77021023f8e6ecf337d7a83681103356e508f5c7ca",
       "deploy/verify_worker_vex_scan.sh": "893e4e04ef2801a655cbe7af2a0c0210b534c87778671fc5db04b8fa1b27258f",
       "worker/.dockerignore": "a75d0c47ae79e3170ddb1dfbdad0cf51b29120ea13412619733d12ab63d1b399",
-      "worker/Dockerfile": "839473ca3fd0d68c94acca4ba041d3691c50458496275922dee2b6d4e38682f3",
+      "worker/Dockerfile": "c75c6dc782db99e2c7841464dc018325fb9c5032b1845f7499231a7db720d96b",
       "worker/pyproject.toml": "d80fafebe6d8e50398585f1aa204c181550a22729cb37a74dfb26a0aaf937daf",
       "worker/src": "f67634ae0a0ea4595bf9a06d44ce756cf038438a65aa992b476d2dc6938f3d04",
       "worker/tests/test_wav.py": "eef0f30a530ffd7648fa5e5dcead76953aaf12cb1f1d0b823a57594f88d84592",
