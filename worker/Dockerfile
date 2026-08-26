@@ -60,7 +60,12 @@ LABEL org.opencontainers.image.title="Signal Enhancer audio worker" \
       io.signal-enhancer.resemble-checkpoint-sha256="f9d035f318de3e6d919bc70cf7ad7d32b4fe92ec5cbe0b30029a27f5db07d9d6"
 
 RUN apt-get update \
-    && apt-get install --yes --no-install-recommends ca-certificates libsndfile1 \
+    && apt-get install --yes --no-install-recommends \
+      ca-certificates \
+      libsndfile1 \
+      libssl3t64 \
+      openssl \
+      openssl-provider-legacy \
     && rm -rf /var/lib/apt/lists/* \
     && addgroup --system --gid 10001 signal \
     && adduser --system --uid 10001 --ingroup signal \
