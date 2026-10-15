@@ -30,7 +30,7 @@ resemble = [
   "pillow>=12.3,<13",
   "resemble-enhance @ git+https://github.com/resemble-ai/resemble-enhance.git@8e978149bfe8abab3eb77d965d579a111afdb0ff",
   "rich>=13.7,<14",
-  "scipy>=1.13.1,<1.15",
+  "scipy>=1.13.1,<1.18",
   "soundfile>=0.12.1,<0.14",
   "torch>=2.13,<2.14",
   # TorchAudio is maintenance-only; 2.11 is its newest release and its inference APIs are
