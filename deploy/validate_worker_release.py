@@ -216,6 +216,8 @@ def validate_inspect(document: Any, policy: Any, build_revision: str) -> None:
         if not separator or not ENVIRONMENT_NAME.fullmatch(name) or name in parsed_environment:
             raise ReleaseValidationError("worker image environment entries are invalid")
         parsed_environment[name] = value
+    if any(name.startswith("LD_") for name in parsed_environment):
+        raise ReleaseValidationError("worker image contains a dynamic-loader override")
     required_environment = {
         "LANG": "C.UTF-8",
         "LC_ALL": "C.UTF-8",

@@ -97,12 +97,16 @@ jobs:
             /usr/local/libexec/verify_resemble_core.py --installed
           docker run --rm --interactive --entrypoint python "$PUBLISHED_IMAGE" - <<'PY'
           import importlib.metadata
+          import runpy
           import os
           import stat
           from pathlib import Path
 
           assert os.getuid() == 10_001
           assert os.getgid() == 10_001
+          runtime_guard = runpy.run_path("/usr/local/libexec/run_worker.py")
+          runtime_guard["validate_startup_context"](os.environ, Path("/proc/self/maps").read_text())
+          runtime_guard["verify_package_tool_access"]()
           runtime_home = Path.home()
           xdg_cache = Path(os.environ["XDG_CACHE_HOME"])
           triton_cache = Path(os.environ["TRITON_CACHE_DIR"])
@@ -134,6 +138,7 @@ jobs:
           assert torch.isfinite(mel).all()
           assert callable(inference.load_enhancer)
           assert callable(inference.enhance)
+          runtime_guard["validate_startup_context"](os.environ, Path("/proc/self/maps").read_text())
           print(
               "published image dependency smoke passed:",
               importlib.metadata.version("signal-resemble-core"),
@@ -188,8 +193,14 @@ jobs:
               inventory=/tmp/signal-enhancer-final-image-elf.json
               python /audit/verify_worker_native_boundary.py --write-inventory "$inventory"
               export DEBIAN_FRONTEND=noninteractive
+              # Audit-only permission change in this disposable container.
+              # Restore before proving every original mode/owner/hash below.
+              chmod 0755 /usr/bin/dpkg-deb
+              trap "chmod 000 /usr/bin/dpkg-deb" EXIT
               apt-get update
               apt-get install --yes --no-install-recommends --no-upgrade binutils
+              chmod 000 /usr/bin/dpkg-deb
+              trap - EXIT
               python /audit/verify_worker_native_boundary.py --verify-inventory "$inventory"
             '
       - name: Generate published image SBOM

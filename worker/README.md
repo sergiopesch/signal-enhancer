@@ -127,6 +127,15 @@ rejects a command or entrypoint that bypasses this launcher; provider command ov
 also remain prohibited. The audio API and fixed Uvicorn arguments stay the same. Actual CUDA inference
 still requires the release GPU checks.
 
+The service account cannot read, execute, or load the exact inherited `dpkg-deb`
+and `libapt-pkg` gzip writers: their bytes are pinned, their owner is root, and
+their mode is `000`. Startup verifies those denials and rejects loader overrides
+or an already loaded package library. Dependency changes happen during image builds.
+The native audit uses a separate disposable root container: it inventories the original
+bytes, modes and owners, temporarily enables only `dpkg-deb` to install trusted audit
+tools, restores mode `000`, and verifies every original file before reporting a pass.
+SBOM and vulnerability scans use the immutable image rather than that audit container.
+
 The native source audit distinguishes the exact, hash-verified Pygments PHP keyword
 table from a native symbol lookup. Its names are syntax-highlighting data; cached
 bytecode must match the compiler output of that same reviewed source. Altered source,

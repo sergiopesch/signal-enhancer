@@ -39,6 +39,11 @@ MONETARY_SYMBOLS = {"strfmon", "strfmon_l", "__strfmon_l", "__vstrfmon_l"}
 ALIGNED_NEW_LIBRARY_SHA256 = "972bb2a18b71140dab0240f8a1f68ab3fb1d56bcd4c4f824a91b70888faf5a00"
 # Pygments2.20.0 official blob1f93215d78a5617fcc98b0d52b5b9ee8720d52cf.
 PHP_KEYWORDS_SOURCE_SHA256 = "f60f962d3dea6d21a8950241ff83d2e855bfafb1d55c15af239396c4ab5bc289"
+DISABLED_PACKAGE_WRITERS = {
+    "/usr/bin/dpkg-deb": "5346e5fdfdc81d58bbc9d2a3de20ff3738dc479cdb04cc52b91503cbb13440eb",
+    "/usr/lib/x86_64-linux-gnu/libapt-pkg.so.7.0.0": "d3dca8bc35a1addcc03808792768ce82ca59bb3623f8053e58b3402ac5898974",
+}
+DISABLED_WRITER_SYMBOLS = {"gzwrite"}
 ALLOCATING_SCANF_BYTES = re.compile(rb"%(?:[0-9]+\$)?['I]*([0-9]+)m(?:lc|[cC])")
 SYMBOL_PROVIDERS = {"libc.so.6", "libresolv.so.2"}
 READELF = "/usr/bin/readelf"
@@ -89,6 +94,59 @@ def _assert_aligned_new_runtime(inventory: list[dict[str, Any]]) -> None:
     libraries = [item for item in inventory if Path(item["path"]).name.startswith("libstdc++")]
     if not libraries or any(item["sha256"] != ALIGNED_NEW_LIBRARY_SHA256 for item in libraries):
         raise NativeBoundaryError("the reviewed posix_memalign C++ runtime is missing or changed")
+
+
+def _is_disabled_package_writer(path: Path, *, uid: int, gid: int, mode: int, sha256: str) -> bool:
+    expected = DISABLED_PACKAGE_WRITERS.get(str(path))
+    if expected is None:
+        return False
+    if uid != 0 or gid != 0 or mode != 0 or sha256 != expected:
+        raise NativeBoundaryError("a disabled package writer changed owner, mode, or bytes")
+    return True
+
+
+def _native_reference_violations(
+    path: Path,
+    imported: set[str],
+    symbol_strings: set[str],
+    *,
+    uid: int,
+    gid: int,
+    mode: int,
+    sha256: str,
+) -> tuple[set[str], set[str], bool]:
+    disabled = _is_disabled_package_writer(path, uid=uid, gid=gid, mode=mode, sha256=sha256)
+    permitted = DISABLED_WRITER_SYMBOLS if disabled else set()
+    references = (imported & FORBIDDEN_IMPORTS) - permitted
+    lookups = {
+        symbol
+        for symbol in symbol_strings & FORBIDDEN_IMPORTS
+        if not _is_symbol_provider(path, symbol) and symbol not in permitted
+    }
+    return references, lookups, disabled
+
+
+def _assert_required_disabled_writers(paths: set[str]) -> None:
+    if paths != set(DISABLED_PACKAGE_WRITERS):
+        raise NativeBoundaryError(
+            "an expected disabled package writer is absent from the inventory"
+        )
+
+
+def _verify_inventory_shape(elf: Path, expected: dict[str, Any]) -> os.stat_result:
+    try:
+        metadata = elf.stat()
+    except OSError as error:
+        raise NativeBoundaryError("an inventoried ELF disappeared") from error
+    if (
+        metadata.st_size != expected["size"]
+        or metadata.st_uid != expected["uid"]
+        or metadata.st_gid != expected["gid"]
+        or stat.S_IMODE(metadata.st_mode) != expected["mode"]
+        or not _is_elf(elf)
+    ):
+        raise NativeBoundaryError("an inventoried ELF changed shape")
+    return metadata
 
 
 def _assert_platform_and_locale() -> None:
@@ -247,12 +305,14 @@ def write_inventory(path: Path) -> None:
     if not files:
         raise NativeBoundaryError("no final-image ELF files were discovered")
     inventory = {
-        "schemaVersion": 2,
+        "schemaVersion": 3,
         "files": [
             {
                 "path": str(file),
                 "size": file.stat().st_size,
                 "mode": stat.S_IMODE(file.stat().st_mode),
+                "uid": file.stat().st_uid,
+                "gid": file.stat().st_gid,
                 "sha256": _sha256(file),
             }
             for file in files
@@ -270,7 +330,7 @@ def _load_inventory(path: Path) -> list[dict[str, Any]]:
     files = document.get("files") if isinstance(document, dict) else None
     if (
         not isinstance(document, dict)
-        or document.get("schemaVersion") != 2
+        or document.get("schemaVersion") != 3
         or not isinstance(files, list)
         or not files
     ):
@@ -280,6 +340,10 @@ def _load_inventory(path: Path) -> list[dict[str, Any]]:
             not isinstance(item, dict)
             or not isinstance(item.get("path"), str)
             or not item["path"].startswith("/")
+            or not isinstance(item.get("uid"), int)
+            or item["uid"] < 0
+            or not isinstance(item.get("gid"), int)
+            or item["gid"] < 0
             or not isinstance(item.get("mode"), int)
             or item["mode"] < 0
             or item["mode"] > 0o7777
@@ -410,44 +474,45 @@ def verify_inventory(path: Path) -> None:
     forbidden_references: list[str] = []
     forbidden_dynamic_lookups: list[str] = []
     forbidden_formats: list[str] = []
+    verified_disabled_writers: set[str] = set()
     for item in inventory:
         elf = Path(item["path"])
-        try:
-            metadata = elf.stat()
-        except OSError as error:
-            raise NativeBoundaryError("an inventoried ELF disappeared") from error
-        if (
-            metadata.st_size != item["size"]
-            or stat.S_IMODE(metadata.st_mode) != item["mode"]
-            or not _is_elf(elf)
-        ):
-            raise NativeBoundaryError("an inventoried ELF changed shape")
+        metadata = _verify_inventory_shape(elf, item)
         actual_sha256, widths, symbol_strings = _digest_and_scan(elf)
         if actual_sha256 != item["sha256"]:
             raise NativeBoundaryError("an inventoried ELF changed after tool installation")
-        imported = _undefined_symbols(elf) & FORBIDDEN_IMPORTS
+        imported, lookup_strings, disabled_writer = _native_reference_violations(
+            elf,
+            _undefined_symbols(elf),
+            symbol_strings,
+            uid=metadata.st_uid,
+            gid=metadata.st_gid,
+            mode=stat.S_IMODE(metadata.st_mode),
+            sha256=actual_sha256,
+        )
+        if disabled_writer:
+            verified_disabled_writers.add(str(elf))
         if imported:
             forbidden_references.append(f"{elf}: {','.join(sorted(imported))}")
-        lookup_strings = {
-            symbol for symbol in symbol_strings if not _is_symbol_provider(elf, symbol)
-        }
         if lookup_strings:
             forbidden_dynamic_lookups.append(f"{elf}: {','.join(sorted(lookup_strings))}")
         if elf.name != "libc.so.6" and widths:
             forbidden_formats.append(f"{elf}: {','.join(map(str, sorted(widths)))}")
+    _assert_required_disabled_writers(verified_disabled_writers)
+    violations: list[str] = []
     if forbidden_references:
-        raise NativeBoundaryError(
-            "forbidden native imports found: " + "; ".join(forbidden_references)
-        )
+        violations.append("forbidden native imports found: " + "; ".join(forbidden_references))
     if forbidden_dynamic_lookups:
-        raise NativeBoundaryError(
+        violations.append(
             "forbidden native symbol strings found outside providers: "
             + "; ".join(forbidden_dynamic_lookups)
         )
     if forbidden_formats:
-        raise NativeBoundaryError(
+        violations.append(
             "forbidden allocating scanf formats found: " + "; ".join(forbidden_formats)
         )
+    if violations:
+        raise NativeBoundaryError(" | ".join(violations))
     print(f"native VEX boundary verified across all {len(inventory)} final-image ELF files")
 
 

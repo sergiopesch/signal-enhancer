@@ -21,6 +21,22 @@ def test_accepts_only_unprivileged_kernel_evidence() -> None:
     RUNTIME.validate_privileges(IDENTITY, IDENTITY, STATUS)
 
 
+def test_accepts_only_normal_loader_environment_and_process_maps() -> None:
+    RUNTIME.validate_startup_context(
+        {"PATH": "/app/.venv/bin:/usr/bin"}, "0000 /usr/local/bin/python\n"
+    )
+    for name in ("LD_PRELOAD", "LD_LIBRARY_PATH", "LD_AUDIT", "LD_DEBUG"):
+        with pytest.raises(RuntimeError):
+            RUNTIME.validate_startup_context({name: ""}, "")
+    for mapped in (
+        "/usr/lib/x86_64-linux-gnu/libapt-pkg.so.7.0.0",
+        "/usr/bin/dpkg-deb",
+        "/usr/lib/x86_64-linux-gnu/libapt-pkg.so.7.0.0 (deleted)",
+    ):
+        with pytest.raises(RuntimeError):
+            RUNTIME.validate_startup_context({}, "0000 " + mapped + "\n")
+
+
 def test_closes_real_inherited_descriptors_and_preserves_standard_streams() -> None:
     code = """
 import errno, os, runpy, sys

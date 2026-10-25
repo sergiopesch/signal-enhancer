@@ -11,15 +11,20 @@ from unittest.mock import patch
 
 from verify_worker_native_boundary import (
     ALIGNED_NEW_LIBRARY_SHA256,
+    DISABLED_PACKAGE_WRITERS,
     FORBIDDEN_IMPORTS,
     NativeBoundaryError,
     _assert_aligned_new_runtime,
     _assert_no_source_symbol_lookup,
+    _assert_required_disabled_writers,
     _assert_regular_file_privileges,
     _digest_and_scan,
     _format_widths,
     _is_symbol_provider,
+    _is_disabled_package_writer,
     _is_verified_php_keyword_data,
+    _native_reference_violations,
+    _verify_inventory_shape,
 )
 
 KEYWORDS = b'''"""PHP lexer keyword fixture."""
@@ -37,6 +42,78 @@ def keyword_source(directory: str) -> Path:
 
 
 class NativeBoundaryFormatTests(unittest.TestCase):
+    def test_only_exact_root_owned_inaccessible_package_bytes_qualify(self) -> None:
+        for filename, digest in DISABLED_PACKAGE_WRITERS.items():
+            fields = {"uid": 0, "gid": 0, "mode": 0, "sha256": digest}
+            self.assertTrue(_is_disabled_package_writer(Path(filename), **fields))
+            for replacement in (
+                {"uid": 10_001},
+                {"gid": 10_001},
+                {"mode": 0o400},
+                {"mode": 0o100},
+                {"mode": 0o755},
+                {"sha256": "0" * 64},
+            ):
+                with (
+                    self.subTest(filename=filename, replacement=replacement),
+                    self.assertRaises(NativeBoundaryError),
+                ):
+                    _is_disabled_package_writer(Path(filename), **{**fields, **replacement})
+            self.assertFalse(
+                _is_disabled_package_writer(Path("/unexpected/copied-writer"), **fields)
+            )
+
+    def test_disabled_writers_cannot_exempt_other_symbols_or_other_elfs(self) -> None:
+        filename, digest = next(iter(DISABLED_PACKAGE_WRITERS.items()))
+        fields = {"uid": 0, "gid": 0, "mode": 0, "sha256": digest}
+        references, lookups, disabled = _native_reference_violations(
+            Path(filename),
+            {"gzwrite", "gzprintf", "strfmon"},
+            {"gzwrite", "gzprintf", "strfmon"},
+            **fields,
+        )
+        self.assertTrue(disabled)
+        self.assertEqual({"gzprintf", "strfmon"}, references)
+        self.assertEqual({"gzprintf", "strfmon"}, lookups)
+        references, lookups, disabled = _native_reference_violations(
+            Path("/app/extra.so"), {"gzwrite"}, {"gzwrite"}, **fields
+        )
+        self.assertFalse(disabled)
+        self.assertEqual({"gzwrite"}, references)
+        self.assertEqual({"gzwrite"}, lookups)
+
+    def test_both_disabled_writers_must_be_in_the_original_inventory(self) -> None:
+        _assert_required_disabled_writers(set(DISABLED_PACKAGE_WRITERS))
+        for paths in (
+            set(),
+            {next(iter(DISABLED_PACKAGE_WRITERS))},
+            set(DISABLED_PACKAGE_WRITERS) | {"/extra.so"},
+        ):
+            with self.subTest(paths=paths), self.assertRaises(NativeBoundaryError):
+                _assert_required_disabled_writers(paths)
+
+    def test_audit_cannot_leave_changed_modes_or_owners_after_tool_installation(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory, "fixture")
+            path.write_bytes(b"\x7fELFfixture")
+            path.chmod(0o644)
+            metadata = path.stat()
+            original = {
+                "size": metadata.st_size,
+                "uid": metadata.st_uid,
+                "gid": metadata.st_gid,
+                "mode": 0o644,
+            }
+            _verify_inventory_shape(path, original)
+            path.chmod(0o755)
+            for expected in (original, {**original, "mode": 0}):
+                with self.assertRaises(NativeBoundaryError):
+                    _verify_inventory_shape(path, expected)
+            path.chmod(0o644)
+            for replacement in ({"uid": metadata.st_uid + 1}, {"gid": metadata.st_gid + 1}):
+                with self.assertRaises(NativeBoundaryError):
+                    _verify_inventory_shape(path, {**original, **replacement})
+
     def test_keyword_data_requires_exact_provenance_and_namespace(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             source = keyword_source(directory)

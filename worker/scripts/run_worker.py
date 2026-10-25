@@ -5,6 +5,9 @@ from __future__ import annotations
 import ctypes
 import errno
 import os
+import stat
+import subprocess
+from collections.abc import Mapping
 from pathlib import Path
 
 WORKER_COMMAND = (
@@ -44,6 +47,56 @@ def validate_privileges(
             raise RuntimeError("the worker must not retain process capabilities")
 
 
+def validate_startup_context(environment: Mapping[str, str], process_maps: str) -> None:
+    """Accept the normal image launch without dynamic-loader overrides or apt."""
+    if any(name.startswith("LD_") for name in environment):
+        raise RuntimeError("dynamic-loader environment overrides are forbidden")
+    if any(
+        "libapt-pkg.so" in line or "/usr/bin/dpkg-deb" in line for line in process_maps.splitlines()
+    ):
+        raise RuntimeError("a disabled package writer was already loaded")
+
+
+def verify_package_tool_access() -> None:
+    """Prove the service cannot read, execute, or load its disabled writers."""
+    if os.geteuid() != 10_001:
+        raise RuntimeError("package-tool denial must be checked as UID 10001")
+    binary = Path("/usr/bin/dpkg-deb")
+    library = Path("/usr/lib/x86_64-linux-gnu/libapt-pkg.so.7.0.0")
+    for path in (binary, library):
+        metadata = path.lstat()
+        if (
+            not stat.S_ISREG(metadata.st_mode)
+            or metadata.st_uid != 0
+            or metadata.st_gid != 0
+            or stat.S_IMODE(metadata.st_mode) != 0
+        ):
+            raise RuntimeError("a package writer is not disabled and root-owned")
+        try:
+            with path.open("rb"):
+                pass
+        except PermissionError:
+            pass
+        else:
+            raise RuntimeError("a disabled package writer remained readable")
+    try:
+        subprocess.run(  # noqa: S603 - fixed harmless command must fail at exec permission check
+            [str(binary), "--version"], capture_output=True, check=False, timeout=5
+        )
+    except PermissionError:
+        pass
+    else:
+        raise RuntimeError("the disabled package tool remained executable")
+    try:
+        ctypes.CDLL(str(library))
+    except OSError as error:
+        if "Permission denied" not in str(error):
+            raise RuntimeError("package-library denial was not a permission failure") from error
+    else:
+        raise RuntimeError("the disabled package library could still be loaded")
+    validate_startup_context(os.environ, Path("/proc/self/maps").read_text())
+
+
 def prevent_new_privileges() -> None:
     """Linux PR_SET_NO_NEW_PRIVS persists across the fixed exec and its descendants."""
     library = ctypes.CDLL(None, use_errno=True)
@@ -71,9 +124,11 @@ def close_inherited_descriptors() -> None:
 
 
 def main() -> None:
+    validate_startup_context(os.environ, Path("/proc/self/maps").read_text())
     prevent_new_privileges()
     validate_privileges(os.getresuid(), os.getresgid(), Path("/proc/self/status").read_text())
     close_inherited_descriptors()
+    verify_package_tool_access()
     os.execv(WORKER_COMMAND[0], WORKER_COMMAND)  # noqa: S606 - fixed absolute process/arguments
 
 

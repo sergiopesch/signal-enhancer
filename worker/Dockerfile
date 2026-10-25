@@ -87,6 +87,7 @@ COPY --chmod=0644 scripts/run_worker.py /usr/local/libexec/run_worker.py
 
 # The service needs no set-ID helpers or executable file capabilities.
 RUN python - <<'PY_RUNTIME'
+import hashlib
 import os
 import stat
 from pathlib import Path
@@ -102,6 +103,17 @@ for current, directories, names in os.walk("/", topdown=True, followlinks=False)
             path.chmod(stat.S_IMODE(metadata.st_mode) & ~(stat.S_ISUID | stat.S_ISGID))
         if "security.capability" in os.listxattr(path, follow_symlinks=False):
             os.removexattr(path, "security.capability", follow_symlinks=False)
+
+# The immutable audio service performs no package installation at runtime.
+# Keep package records for the SBOM while denying access to the two gzip writers.
+for filename, expected_sha256 in {
+    "/usr/bin/dpkg-deb": "5346e5fdfdc81d58bbc9d2a3de20ff3738dc479cdb04cc52b91503cbb13440eb",
+    "/usr/lib/x86_64-linux-gnu/libapt-pkg.so.7.0.0": "d3dca8bc35a1addcc03808792768ce82ca59bb3623f8053e58b3402ac5898974",
+}.items():
+    path = Path(filename)
+    assert path.stat().st_uid == 0 and path.stat().st_gid == 0
+    assert hashlib.file_digest(path.open("rb"), "sha256").hexdigest() == expected_sha256
+    path.chmod(0)
 PY_RUNTIME
 
 USER 10001:10001
