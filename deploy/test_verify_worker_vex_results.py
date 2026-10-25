@@ -5,13 +5,18 @@ import unittest
 
 from verify_worker_vex_results import VexScanError, verify
 
-TARGET = ("CVE-2026-7210", "pkg:generic/python@3.12.13")
+TARGET = (
+    "CVE-2026-5435",
+    "pkg:deb/debian/libc6@2.41-12%2Bdeb13u4?arch=amd64&distro=debian-13&upstream=glibc",
+)
 
 
-def match(*, ignored: bool = False, version: str = "3.12.13") -> dict[str, object]:
+def match(*, ignored: bool = False, version: str = "2.41-12%2Bdeb13u4") -> dict[str, object]:
     result: dict[str, object] = {
         "vulnerability": {"id": TARGET[0], "severity": "High"},
-        "artifact": {"purl": f"pkg:generic/python@{version}"},
+        "artifact": {
+            "purl": f"pkg:deb/debian/libc6@{version}?arch=amd64&distro=debian-13&upstream=glibc"
+        },
     }
     if ignored:
         result["appliedIgnoreRules"] = [{"namespace": "vex", "vex-status": "not_affected"}]
@@ -37,7 +42,7 @@ class WorkerVexResultTests(unittest.TestCase):
 
     def test_rejects_an_unreviewed_high_finding(self) -> None:
         candidate = copy.deepcopy(self.baseline)
-        candidate["matches"].append(match(version="3.12.14"))
+        candidate["matches"].append(match(version="2.41-12%2Bdeb13u3"))
         with self.assertRaises(VexScanError):
             verify(candidate, self.vexed, self.mismatch, self.vex, target=TARGET)
 

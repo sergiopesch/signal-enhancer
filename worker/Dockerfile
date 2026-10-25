@@ -2,7 +2,7 @@
 ARG INSTALL_RESEMBLE=1
 
 # Keep the readable security-release tag while pinning the exact multi-platform image index.
-FROM --platform=linux/amd64 python:3.12.13-slim-trixie@sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de AS builder
+FROM --platform=linux/amd64 python:3.12.15-slim-trixie@sha256:a0f57064cbdcd6285fa45f51237ab0b35ea8ebaed06a1f5973e89e19dfb86704 AS builder
 
 ARG INSTALL_RESEMBLE
 
@@ -36,7 +36,7 @@ RUN if [ "$INSTALL_RESEMBLE" = "1" ]; then \
       uv sync --frozen --no-dev --no-editable; \
     fi
 
-FROM --platform=linux/amd64 python:3.12.13-slim-trixie@sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de AS runtime
+FROM --platform=linux/amd64 python:3.12.15-slim-trixie@sha256:a0f57064cbdcd6285fa45f51237ab0b35ea8ebaed06a1f5973e89e19dfb86704 AS runtime
 
 ARG INSTALL_RESEMBLE
 ARG SIGNAL_BUILD_REVISION=dev

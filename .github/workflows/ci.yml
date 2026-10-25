@@ -242,6 +242,7 @@ jobs:
             worker-image.openvex.json \
             worker-image.grype.json
       - name: Retain worker VEX and vulnerability report
+        if: ${{ !cancelled() && hashFiles('worker-image.openvex.json', 'worker-image.grype.json') != '' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: signal-enhancer-worker-${{ github.sha }}.security-evidence

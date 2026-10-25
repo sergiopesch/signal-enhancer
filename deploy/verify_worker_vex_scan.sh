@@ -9,8 +9,8 @@ fi
 sbom_path="$1"
 vex_path="$2"
 report_path="$3"
-target_cve="CVE-2026-7210"
-target_purl="pkg:generic/python@3.12.13"
+target_cve="CVE-2026-5435"
+target_purl="pkg:deb/debian/libc6@2.41-12%2Bdeb13u4?arch=amd64&distro=debian-13&upstream=glibc"
 grype_image="anchore/grype:v0.110.0@sha256:af65fbc0c664691067788fe95ff88760b435543e45595eb2ca6f102fc476fbe1"
 audit_dir="$(mktemp -d "${RUNNER_TEMP:-/tmp}/signal-enhancer-vex.XXXXXX")"
 cache_dir="${RUNNER_TEMP:-/tmp}/signal-enhancer-grype-v0.110.0"
@@ -58,7 +58,7 @@ matches = [
 ]
 if len(matches) != 1:
     raise SystemExit("expected exactly one mismatch-test VEX product")
-matches[0]["@id"] = target_purl.replace("@3.12.13", "@3.12.12")
+matches[0]["@id"] = target_purl.replace("2.41-12%2Bdeb13u4", "2.41-12%2Bdeb13u3")
 with open(output_path, "w", encoding="utf-8") as output:
     json.dump(candidate, output, indent=2)
     output.write("\n")

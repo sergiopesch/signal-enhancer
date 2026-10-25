@@ -117,7 +117,7 @@ uv pip check --python .venv/bin/python
 
 ## Container and Hugging Face
 
-The image is fixed to `linux/amd64`, uses a digest-pinned Python 3.12.13 security-release base,
+The image is fixed to `linux/amd64`, uses a digest-pinned Python 3.12.15 security-release base,
 installs from the committed `uv.lock`, runs as UID/GID 10001, disables Uvicorn access logs, and
 uses port 7860 plus `/health` for readiness. The unprivileged account has a private `0700` home
 and cache tree at `/var/lib/signal-enhancer`; DeepSpeed's Triton cache is confined there instead of
