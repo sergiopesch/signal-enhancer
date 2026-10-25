@@ -18,6 +18,7 @@ from verify_worker_native_boundary import (
     NVRTC_BUILTIN_ROW_INDEX,
     NVRTC_BUILTIN_TABLE_BYTES,
     _assert_aligned_new_runtime,
+    _assert_final_file_privileges,
     _assert_no_source_symbol_lookup,
     _assert_required_disabled_writers,
     _assert_regular_file_privileges,
@@ -82,6 +83,49 @@ def builtin_metadata_fixture(
 
 
 class NativeBoundaryFormatTests(unittest.TestCase):
+    def test_rejects_unreviewed_perl_pod_and_archive_modules_or_aliases(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            modules = (
+                "Pod/Text", "Pod/Text/Color", "Pod/Text/Overstrike", "Pod/Text/Termcap",
+                "Archive/Tar", "Archive/Tar/Constant",
+            )
+            for relative in (module + suffix for module in modules for suffix in (".pm", ".pmc")):
+                path = Path(directory, relative)
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("package fixture; 1;\n")
+                with self.subTest(relative=relative), self.assertRaises(NativeBoundaryError):
+                    _assert_regular_file_privileges(path)
+                actual = path.with_name("renamed-module")
+                path.rename(actual)
+                path.symlink_to(actual)
+                with self.subTest(alias=relative), self.assertRaises(NativeBoundaryError):
+                    _assert_regular_file_privileges(path)
+                path.unlink()
+                actual.unlink()
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory, "other")
+            target.mkdir()
+            for relative in ("Pod", "Archive", "nested/Pod/Text", "nested/Archive/Tar"):
+                alias = Path(directory, relative)
+                alias.parent.mkdir(parents=True, exist_ok=True)
+                alias.symlink_to(target, target_is_directory=True)
+                with (
+                    self.subTest(directory_alias=relative),
+                    patch("verify_worker_native_boundary.os.walk", return_value=[(str(alias.parent), [alias.name], [])]),
+                    self.assertRaises(NativeBoundaryError),
+                ):
+                    _assert_final_file_privileges()
+                alias.unlink()
+                if "/" in relative:
+                    alias.mkdir()
+                    with (
+                        self.subTest(directory_tree=relative),
+                        patch("verify_worker_native_boundary.os.walk", return_value=[(str(alias.parent), [alias.name], [])]),
+                        self.assertRaises(NativeBoundaryError),
+                    ):
+                        _assert_final_file_privileges()
+                    alias.rmdir()
+
     def test_nvrtc_occurrences_crossing_scan_chunks_are_counted_exactly(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             # The seven-byte symbol crosses the 1MiB scan boundary.

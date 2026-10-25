@@ -51,6 +51,28 @@ class WorkerVexResultTests(unittest.TestCase):
         with self.assertRaises(VexScanError):
             verify(self.baseline, self.vexed, mismatch, self.vex, target=TARGET)
 
+    def test_rejects_an_unreviewed_cve_on_the_same_package(self) -> None:
+        candidate = copy.deepcopy(self.baseline)
+        unexpected = match()
+        unexpected["vulnerability"]["id"] = "CVE-2026-999999"
+        candidate["matches"].append(unexpected)
+        with self.assertRaises(VexScanError):
+            verify(candidate, self.vexed, self.mismatch, self.vex, target=TARGET)
+
+    def test_rejects_an_unreviewed_product_at_the_same_version(self) -> None:
+        candidate = copy.deepcopy(self.baseline)
+        unexpected = match()
+        unexpected["artifact"]["purl"] = TARGET[1].replace("/libc6@", "/unreviewed@")
+        candidate["matches"].append(unexpected)
+        with self.assertRaises(VexScanError):
+            verify(candidate, self.vexed, self.mismatch, self.vex, target=TARGET)
+
+    def test_rejects_suppression_beyond_the_exact_baseline_pairs(self) -> None:
+        candidate = copy.deepcopy(self.vexed)
+        candidate["ignoredMatches"].append(match(ignored=True, version="2.41-12%2Bdeb13u3"))
+        with self.assertRaises(VexScanError):
+            verify(self.baseline, candidate, self.mismatch, self.vex, target=TARGET)
+
 
 if __name__ == "__main__":
     unittest.main()

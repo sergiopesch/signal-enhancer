@@ -99,7 +99,21 @@ def _is_symbol_provider(path: Path, symbol: str) -> bool:
     return path.name in SYMBOL_PROVIDERS
 
 
+def _assert_absent_perl_module_path(path: Path) -> None:
+    for namespace, module in (("Pod", "Text"), ("Archive", "Tar")):
+        if path.parent.name == namespace and path.name in {module + ".pm", module + ".pmc"}:
+            raise NativeBoundaryError("an unreviewed Perl POD formatter or archive module is shipped")
+        # Pod::Text's Color/Overstrike/Termcap wrappers share the vulnerable
+        # formatter behavior. Reject the complete tree, including cached modules.
+        if any(
+            path.parts[index : index + 2] == (namespace, module)
+            for index in range(len(path.parts) - 1)
+        ):
+            raise NativeBoundaryError("an unreviewed Perl module implementation tree is shipped")
+
+
 def _assert_regular_file_privileges(path: Path) -> None:
+    _assert_absent_perl_module_path(path)
     metadata = path.lstat()
     if not stat.S_ISREG(metadata.st_mode):
         return
@@ -113,6 +127,13 @@ def _assert_regular_file_privileges(path: Path) -> None:
 
 def _assert_final_file_privileges() -> None:
     for current, directories, names in os.walk("/", topdown=True, followlinks=False):
+        for name in directories:
+            _assert_absent_perl_module_path(Path(current, name))
+        if any(
+            name in {"Pod", "Archive"} and Path(current, name).is_symlink()
+            for name in directories
+        ):
+            raise NativeBoundaryError("a Perl module directory has an unreviewed symlink alias")
         directories[:] = [
             name
             for name in directories

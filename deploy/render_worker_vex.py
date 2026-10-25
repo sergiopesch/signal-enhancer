@@ -159,8 +159,10 @@ def _root_image_purl(sbom: Any) -> str:
 def _validated_policy_statements(policy: Any) -> list[dict[str, Any]]:
     if not isinstance(policy, dict) or policy.get("@context") != "https://openvex.dev/ns/v0.2.0":
         raise VexRenderError("component policy is not OpenVEX 0.2")
+    version = policy.get("version")
     if (
-        policy.get("version") != 1
+        not isinstance(version, int)
+        or version != 2
         or not isinstance(policy.get("@id"), str)
         or not isinstance(policy.get("author"), str)
     ):

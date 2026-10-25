@@ -49,6 +49,11 @@ PCM/float-only parser boundary; removing the Debian package alone is not remedia
 
 CI cannot prove that Hugging Face mounted the checkpoint, that the selected L4 exposes CUDA, or
 that a published registry digest contains the bytes CI scanned. Those remain promotion gates.
+The native assessments describe the immutable built image and its frozen dependencies. Before
+production promotion, provider-injected driver libraries and other runtime extensions require a
+fresh native-boundary review; they are not covered by the image's ELF inventory or VEX. Keep the
+fixed launch and loader controls in force. Successful source, native and security checks can
+qualify source merge while those GPU and provider promotion gates remain pending.
 
 ## Production invariant set
 

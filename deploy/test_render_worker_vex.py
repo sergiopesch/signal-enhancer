@@ -6,7 +6,7 @@ import re
 import unittest
 from pathlib import Path
 
-from render_worker_vex import VexRenderError, load_json, render_vex
+from render_worker_vex import VexRenderError, _validated_policy_statements, load_json, render_vex
 
 POLICY_PATH = Path(__file__).with_name("worker.openvex.json")
 REPOSITORY_ROOT = POLICY_PATH.parent.parent
@@ -15,6 +15,16 @@ IMAGE_PURL = (
     "pkg:oci/local%2Fsignal-enhancer-worker@sha256%3A" + "a" * 64 + "?arch=amd64&tag=release"
 )
 EXPECTED_CVES = {
+    "CVE-2026-102010",
+    "CVE-2026-19499",
+    "CVE-2026-76642",
+    "CVE-2026-78408",
+    "CVE-2026-78409",
+    "CVE-2026-78410",
+    "CVE-2026-82560",
+    "CVE-2026-85091",
+    "CVE-2026-88372",
+    "CVE-2026-95619",
     "CVE-2025-69720",
     "CVE-2026-37555",
     "CVE-2026-5435",
@@ -81,6 +91,14 @@ class WorkerVexTests(unittest.TestCase):
         self.assertEqual(EXPECTED_CVES, actual_cves)
         rendered = render_vex(self.policy, self.sbom())
         self.assertEqual(len(EXPECTED_CVES), len(rendered["statements"]))
+
+    def test_policy_accepts_only_the_reviewed_integer_document_revision(self) -> None:
+        self.assertEqual(16, len(_validated_policy_statements(self.policy)))
+        for version in (0, 1, 3, True, 2.0, "2"):
+            candidate = copy.deepcopy(self.policy)
+            candidate["version"] = version
+            with self.subTest(version=version), self.assertRaises(VexRenderError):
+                _validated_policy_statements(candidate)
 
     def test_worker_source_preserves_reviewed_execution_boundaries(self) -> None:
         violations: list[str] = []

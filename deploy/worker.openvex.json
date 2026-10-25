@@ -2,23 +2,23 @@
   "@context": "https://openvex.dev/ns/v0.2.0",
   "@id": "https://github.com/sergiopesch/signal-enhancer/blob/main/deploy/worker.openvex.json",
   "author": "Signal Enhancer maintainers with Codex source review <https://github.com/sergiopesch/signal-enhancer>",
-  "timestamp": "2026-10-25T19:10:19Z",
-  "version": 1,
+  "timestamp": "2026-10-25T21:32:00Z",
+  "version": 2,
   "x-signal-enhancer-boundary": {
     "algorithm": "sha256",
     "paths": {
-      ".github/workflows/ci.yml": "d8a87d2ad52d49505db12b4117d23d659c4ebcc20b53f7aec998e2f3daa05f8c",
+      ".github/workflows/ci.yml": "9391210f71c483a76b1a6da104226bb975a9e926afc2a4dbd0b75bbee8768964",
       ".github/workflows/publish-worker.yml": "d619c5f77af8acaca6ed71d9151813b4e011e15379a02c920e6e5e2ca89fecb2",
       "deploy/create_huggingface_endpoint.py": "220dadc60f54af00c69a70f07ea68645407b99e0a9fdab62432891bde02aace5",
       "deploy/huggingface-endpoint.production.json": "b3a9dc3507254d09ea4a382d3fa474d7e49b7d904abf5abd26e6533d4aa54770",
-      "deploy/render_worker_vex.py": "2272e7737b6c058f48aa01b5aaef9c38384295c62d62e40bbec2e681e16a0025",
+      "deploy/render_worker_vex.py": "537ca22f64d5f5c570cd591aa4cfb0099bb7655b77ff1d1f8da9d1caf88c87f7",
       "deploy/test_create_huggingface_endpoint.py": "41adf2ed84bd2adbc66b025f67ec6681dd71fbb5e2c949ef54b3c1ffef36be2c",
-      "deploy/test_render_worker_vex.py": "facaddd1b75da3f8c57fb60fed4276bd08a8516a175ab86180dafd4143859964",
+      "deploy/test_render_worker_vex.py": "743497f83673d348e5f30017e7ce4ac6409ebcc96efcd46b299ff32fd2a1d693",
       "deploy/test_validate_worker_release.py": "ea201c34847e71a535077fb999fec2a9442acfc44a112cc503ed771f10d42ec3",
-      "deploy/test_verify_worker_native_boundary.py": "4ae875cd0e2626d7cb8c8b352006176455dba9783050974a7b37f4848f970ebc",
-      "deploy/test_verify_worker_vex_results.py": "ba23779363069cf96b0cea35b94aca016bb45b9b33d0ac5406e385e5d2d0dd3f",
+      "deploy/test_verify_worker_native_boundary.py": "028594d35c054bd47d0438f2ab3397b34f66f8d1a5550dfa969a2b2e33a22f20",
+      "deploy/test_verify_worker_vex_results.py": "148b78a5e6ef6cc6182852496f4b5ec8dae649bd963d4c403519f12ffca073ea",
       "deploy/validate_worker_release.py": "f75d6d451dfb10c38ef13e40f764e9c208227dcd380846ab179b4ee871f525c2",
-      "deploy/verify_worker_native_boundary.py": "485c69c115c205587eddd3886b1455c0ad322d866ba4c7822f2a8d15ef4d6a6a",
+      "deploy/verify_worker_native_boundary.py": "2e3d3c975fe9552867c02d8bcb0c51a0afa99a261de2a1eeadab9b276292afab",
       "deploy/verify_worker_vex_results.py": "795f138898c3f601111eff77021023f8e6ecf337d7a83681103356e508f5c7ca",
       "deploy/verify_worker_vex_scan.sh": "deef054d840a829b8d02381246e5ea0b1f17017347ed6a9441a74c7575cc9f88",
       "worker/.dockerignore": "a75d0c47ae79e3170ddb1dfbdad0cf51b29120ea13412619733d12ab63d1b399",
@@ -98,7 +98,7 @@
       ],
       "status": "not_affected",
       "justification": "vulnerable_code_not_in_execute_path",
-      "impact_statement": "Boundary: the flaw is confined to the infocmp CLI, while the worker launches no subprocess and exposes no terminal/terminfo input. Evidence: https://security-tracker.debian.org/tracker/CVE-2025-69720 Reassess: on any ncurses or base-image change."
+      "impact_statement": "Boundary: the flaw is confined to the infocmp CLI. The fixed audio service and launcher never invoke infocmp, and no API parameter controls terminal or terminfo input. The launcher permission-denial probe uses only a fixed dpkg-deb command. Evidence: https://security-tracker.debian.org/tracker/CVE-2025-69720 Reassess: on any infocmp invocation, terminal/terminfo input, native tooling, ncurses, source or base-image change."
     },
     {
       "vulnerability": {
@@ -128,6 +128,247 @@
       "status": "not_affected",
       "justification": "vulnerable_code_not_present",
       "impact_statement": "Boundary: Debian perl-base does not ship Archive::Tar, and the worker does not invoke Perl or extract archives. Evidence: https://packages.debian.org/trixie/amd64/perl-base/filelist Reassess: on any Perl package or base-image change."
+    },
+    {
+      "vulnerability": {
+        "name": "CVE-2026-102010"
+      },
+      "products": [
+        {
+          "@id": "pkg:deb/debian/gcc-14-base@14.2.0-19?arch=amd64&distro=debian-13&upstream=gcc-14"
+        },
+        {
+          "@id": "pkg:deb/debian/libgcc-s1@14.2.0-19?arch=amd64&distro=debian-13&upstream=gcc-14"
+        },
+        {
+          "@id": "pkg:deb/debian/libstdc%2B%2B6@14.2.0-19?arch=amd64&distro=debian-13&upstream=gcc-14"
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "impact_statement": "Boundary: this assessment is limited to the matched Debian gcc-14-base, libgcc-s1 and libstdc++6 runtime packages. Their actual SBOM-owned files contain no PBDS binary_heap erase_if header implementation; the upstream fix changes that header template. The final-image guard also rejects any shipped binary_heap_/erase_fn_imps.hpp. This does not certify unrelated native wheels or their inlined C++ templates. Evidence: https://github.com/gcc-mirror/gcc/commit/aaa8351f4d2e636f9680a1f0a8ebc2f0a60611e6 Reassess: on any GCC/runtime/header, native dependency, image or source-boundary change."
+    },
+    {
+      "vulnerability": {
+        "name": "CVE-2026-19499"
+      },
+      "products": [
+        {
+          "@id": "pkg:deb/debian/libc-bin@2.41-12%2Bdeb13u4?arch=amd64&distro=debian-13&upstream=glibc"
+        },
+        {
+          "@id": "pkg:deb/debian/libc6@2.41-12%2Bdeb13u4?arch=amd64&distro=debian-13&upstream=glibc"
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "impact_statement": "Boundary: within this immutable built image, the fixed audio service and all original ELFs have no permitted imported or non-provider runtime lookup of strfmon, strfmon_l, __strfmon_l or __vstrfmon_l. Two exact-hash NVRTC builtin-name records are separately bound to their sole offsets, names, type table and RELATIVE relocations; actual imports remain forbidden. Provider-injected native libraries are outside this assessment and require a fresh runtime boundary audit before promotion. The glibc provider itself remains unpatched. Evidence: https://sourceware.org/git/?p=glibc.git;a=blob;f=advisories/GLIBC-SA-2026-0017 Reassess: on any source, native library, metadata classifier, loader, provider runtime or base-image change."
+    },
+    {
+      "vulnerability": {
+        "name": "CVE-2026-76642"
+      },
+      "products": [
+        {
+          "@id": "pkg:deb/debian/bsdutils@1%3A2.41.5-0%2Bdeb13u1?arch=amd64&distro=debian-13&upstream=util-linux%402.41.5-0%2Bdeb13u1"
+        },
+        {
+          "@id": "pkg:deb/debian/libblkid1@2.41.5-0%2Bdeb13u1?arch=amd64&distro=debian-13&upstream=util-linux"
+        },
+        {
+          "@id": "pkg:deb/debian/liblastlog2-2@2.41.5-0%2Bdeb13u1?arch=amd64&distro=debian-13&upstream=util-linux"
+        },
+        {
+          "@id": "pkg:deb/debian/libmount1@2.41.5-0%2Bdeb13u1?arch=amd64&distro=debian-13&upstream=util-linux"
+        },
+        {
+          "@id": "pkg:deb/debian/libsmartcols1@2.41.5-0%2Bdeb13u1?arch=amd64&distro=debian-13&upstream=util-linux"
+        },
+        {
+          "@id": "pkg:deb/debian/libuuid1@2.41.5-0%2Bdeb13u1?arch=amd64&distro=debian-13&upstream=util-linux"
+        },
+        {
+          "@id": "pkg:deb/debian/login@1%3A4.16.0-2%2Breally2.41.5-0%2Bdeb13u1?arch=amd64&distro=debian-13&upstream=util-linux%402.41.5-0%2Bdeb13u1"
+        },
+        {
+          "@id": "pkg:deb/debian/mount@2.41.5-0%2Bdeb13u1?arch=amd64&distro=debian-13&upstream=util-linux"
+        },
+        {
+          "@id": "pkg:deb/debian/util-linux@2.41.5-0%2Bdeb13u1?arch=amd64&distro=debian-13"
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "impact_statement": "Boundary: for these exact matched util-linux binary packages, the approved fixed audio service invokes no privileged mount, external mount helper or X-mount/fstab post-hook operation. The actual image strips all set-ID/file capabilities; its fixed launcher requires UID/GID10001, zero process capabilities and no-new-privileges, and provider/image validation rejects command and environment overrides. This does not assess privileged operator mount use outside that service boundary or claim util-linux patched. Evidence: https://github.com/util-linux/util-linux/security/advisories/GHSA-m25x-3hj9-m26f Reassess: on any mount/helper/fstab use, privilege, launcher, provider command, package or base-image change."
+    },
+    {
+      "vulnerability": {
+        "name": "CVE-2026-78408"
+      },
+      "products": [
+        {
+          "@id": "pkg:deb/debian/bsdutils@1%3A2.41.5-0%2Bdeb13u1?arch=amd64&distro=debian-13&upstream=util-linux%402.41.5-0%2Bdeb13u1"
+        },
+        {
+          "@id": "pkg:deb/debian/libblkid1@2.41.5-0%2Bdeb13u1?arch=amd64&distro=debian-13&upstream=util-linux"
+        },
+        {
+          "@id": "pkg:deb/debian/liblastlog2-2@2.41.5-0%2Bdeb13u1?arch=amd64&distro=debian-13&upstream=util-linux"
+        },
+        {
+          "@id": "pkg:deb/debian/libmount1@2.41.5-0%2Bdeb13u1?arch=amd64&distro=debian-13&upstream=util-linux"
+        },
+        {
+          "@id": "pkg:deb/debian/libsmartcols1@2.41.5-0%2Bdeb13u1?arch=amd64&distro=debian-13&upstream=util-linux"
+        },
+        {
+          "@id": "pkg:deb/debian/libuuid1@2.41.5-0%2Bdeb13u1?arch=amd64&distro=debian-13&upstream=util-linux"
+        },
+        {
+          "@id": "pkg:deb/debian/login@1%3A4.16.0-2%2Breally2.41.5-0%2Bdeb13u1?arch=amd64&distro=debian-13&upstream=util-linux%402.41.5-0%2Bdeb13u1"
+        },
+        {
+          "@id": "pkg:deb/debian/mount@2.41.5-0%2Bdeb13u1?arch=amd64&distro=debian-13&upstream=util-linux"
+        },
+        {
+          "@id": "pkg:deb/debian/util-linux@2.41.5-0%2Bdeb13u1?arch=amd64&distro=debian-13"
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "impact_statement": "Boundary: the approved fixed audio service and deployment path never invoke privileged nsenter --join-cgroup against an attacker-controlled target. The exact USER/command/entrypoint and provider allowlists exclude that path. The launcher also closes inherited descriptors above2 before fixed exec; stdin/stdout/stderr0-2 intentionally remain. UID/capability drops or no-new-privileges alone are not the rationale: root-opened cgroup descriptors retain authority. This does not assess a privileged operator entering an attacker namespace or changing that launch boundary. Evidence: https://github.com/util-linux/util-linux/security/advisories/GHSA-55fx-f4gg-cfhj Reassess: on any privileged nsenter/cgroup/namespace entry, inherited-descriptor contract, provider/command override, package or base-image change."
+    },
+    {
+      "vulnerability": {
+        "name": "CVE-2026-78409"
+      },
+      "products": [
+        {
+          "@id": "pkg:deb/debian/bsdutils@1%3A2.41.5-0%2Bdeb13u1?arch=amd64&distro=debian-13&upstream=util-linux%402.41.5-0%2Bdeb13u1"
+        },
+        {
+          "@id": "pkg:deb/debian/libblkid1@2.41.5-0%2Bdeb13u1?arch=amd64&distro=debian-13&upstream=util-linux"
+        },
+        {
+          "@id": "pkg:deb/debian/liblastlog2-2@2.41.5-0%2Bdeb13u1?arch=amd64&distro=debian-13&upstream=util-linux"
+        },
+        {
+          "@id": "pkg:deb/debian/libmount1@2.41.5-0%2Bdeb13u1?arch=amd64&distro=debian-13&upstream=util-linux"
+        },
+        {
+          "@id": "pkg:deb/debian/libsmartcols1@2.41.5-0%2Bdeb13u1?arch=amd64&distro=debian-13&upstream=util-linux"
+        },
+        {
+          "@id": "pkg:deb/debian/libuuid1@2.41.5-0%2Bdeb13u1?arch=amd64&distro=debian-13&upstream=util-linux"
+        },
+        {
+          "@id": "pkg:deb/debian/login@1%3A4.16.0-2%2Breally2.41.5-0%2Bdeb13u1?arch=amd64&distro=debian-13&upstream=util-linux%402.41.5-0%2Bdeb13u1"
+        },
+        {
+          "@id": "pkg:deb/debian/mount@2.41.5-0%2Bdeb13u1?arch=amd64&distro=debian-13&upstream=util-linux"
+        },
+        {
+          "@id": "pkg:deb/debian/util-linux@2.41.5-0%2Bdeb13u1?arch=amd64&distro=debian-13"
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "impact_statement": "Boundary: for these exact matched util-linux binary packages, the fixed audio service performs no privileged mount or X-mount.subdir detached-tree operation on attacker-controlled paths. Set-ID and file capabilities are stripped; the launcher verifies UID/GID10001, zero process capabilities and no-new-privileges. Fixed image/provider commands reject alternate namespace or mount entry paths. Privileged operator use outside the approved service is not assessed, and util-linux is not claimed patched. Evidence: https://github.com/util-linux/util-linux/security/advisories/GHSA-8f2p-47x3-43mv Reassess: on any mount/subdir/namespace use, privileges, command override, package or base-image change."
+    },
+    {
+      "vulnerability": {
+        "name": "CVE-2026-78410"
+      },
+      "products": [
+        {
+          "@id": "pkg:deb/debian/bsdutils@1%3A2.41.5-0%2Bdeb13u1?arch=amd64&distro=debian-13&upstream=util-linux%402.41.5-0%2Bdeb13u1"
+        },
+        {
+          "@id": "pkg:deb/debian/libblkid1@2.41.5-0%2Bdeb13u1?arch=amd64&distro=debian-13&upstream=util-linux"
+        },
+        {
+          "@id": "pkg:deb/debian/liblastlog2-2@2.41.5-0%2Bdeb13u1?arch=amd64&distro=debian-13&upstream=util-linux"
+        },
+        {
+          "@id": "pkg:deb/debian/libmount1@2.41.5-0%2Bdeb13u1?arch=amd64&distro=debian-13&upstream=util-linux"
+        },
+        {
+          "@id": "pkg:deb/debian/libsmartcols1@2.41.5-0%2Bdeb13u1?arch=amd64&distro=debian-13&upstream=util-linux"
+        },
+        {
+          "@id": "pkg:deb/debian/libuuid1@2.41.5-0%2Bdeb13u1?arch=amd64&distro=debian-13&upstream=util-linux"
+        },
+        {
+          "@id": "pkg:deb/debian/login@1%3A4.16.0-2%2Breally2.41.5-0%2Bdeb13u1?arch=amd64&distro=debian-13&upstream=util-linux%402.41.5-0%2Bdeb13u1"
+        },
+        {
+          "@id": "pkg:deb/debian/mount@2.41.5-0%2Bdeb13u1?arch=amd64&distro=debian-13&upstream=util-linux"
+        },
+        {
+          "@id": "pkg:deb/debian/util-linux@2.41.5-0%2Bdeb13u1?arch=amd64&distro=debian-13"
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "impact_statement": "Boundary: for these exact matched util-linux binary packages, the fixed audio service performs no privileged restricted bind mount or X-mount.owner/group/mode action. Set-ID/file capabilities are stripped, the launcher requires UID/GID10001, zero process capabilities and no-new-privileges, and provider/image commands cannot override the fixed entry. This excludes the required privileged mount/source-redirection path; it does not assess privileged operator use or claim util-linux patched. Evidence: https://github.com/util-linux/util-linux/security/advisories/GHSA-rh77-686x-2f2m Reassess: on any mount/fstab/owner-hook use, privilege, command, package or base-image change."
+    },
+    {
+      "vulnerability": {
+        "name": "CVE-2026-82560"
+      },
+      "products": [
+        {
+          "@id": "pkg:deb/debian/perl-base@5.40.1-6%2Bdeb13u1?arch=amd64&distro=debian-13&upstream=perl"
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "impact_statement": "Boundary: the exact matched Debian perl-base package in this immutable image does not ship Pod::Text or its Color, Overstrike and Termcap wrappers. Its actual SBOM owns617 files with no Pod/Text implementation, consistent with the Debian file list. The final-image guard rejects Text.pm/.pmc, the complete Pod/Text tree and module aliases; the fixed audio service does not invoke Perl or format POD. Evidence: https://github.com/rra/podlators/commit/70510174f69eb54aa6d617bde4e1402cd9b7c61f Reassess: on any Perl package/module, formatter invocation, image or reviewed source-boundary change."
+    },
+    {
+      "vulnerability": {
+        "name": "CVE-2026-85091"
+      },
+      "products": [
+        {
+          "@id": "pkg:deb/debian/zlib1g@1%3A1.3.dfsg%2Breally1.3.1-1%2Bb1?arch=amd64&distro=debian-13&upstream=zlib%401%3A1.3.dfsg%2Breally1.3.1-1"
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "impact_statement": "Boundary: this immutable image permits no gzip-file-writer call or lookup by the fixed audio service. All original ELF/source gzwrite-family references are rejected except two exact-hash root-owned mode000 package-tool consumers; UID10001 read, exec and dlopen denial, no preload/LD overrides, fixed launch and audit permission restoration are verified. The zlib provider is not claimed patched or outside the affected range. Provider-injected native libraries require a fresh runtime boundary audit before promotion. Evidence: https://github.com/madler/zlib/commit/df84af25dc1942490e1d1c899a07619152a46148 Reassess: on any gzip writer, package-tool access, loader, provider native runtime, source or base-image change."
+    },
+    {
+      "vulnerability": {
+        "name": "CVE-2026-88372"
+      },
+      "products": [
+        {
+          "@id": "pkg:deb/debian/libsndfile1@1.2.2-2%2Bdeb13u1?arch=amd64&distro=debian-13&upstream=libsndfile"
+        }
+      ],
+      "status": "not_affected",
+      "justification": "inline_mitigations_already_exist",
+      "impact_statement": "Boundary: before any libsndfile decoder, the worker manually parses bounded RIFF/WAVE, accepts only PCM/float, rejects MAT4 and passes only decoded numeric tensors to the fixed model. Valid little- and big-endian MAT4 fixtures are rejected at the RIFF boundary. This assessment covers only the exact matched Debian libsndfile1 product; no additional SoundFile package assessment is introduced for this CVE. The library source is not claimed patched. Evidence: https://github.com/libsndfile/libsndfile/issues/1151 Reassess: on any input parser, codec, model adapter, libsndfile or base-image change."
+    },
+    {
+      "vulnerability": {
+        "name": "CVE-2026-95619"
+      },
+      "products": [
+        {
+          "@id": "pkg:deb/debian/gcc-14-base@14.2.0-19?arch=amd64&distro=debian-13&upstream=gcc-14"
+        },
+        {
+          "@id": "pkg:deb/debian/libgcc-s1@14.2.0-19?arch=amd64&distro=debian-13&upstream=gcc-14"
+        },
+        {
+          "@id": "pkg:deb/debian/libstdc%2B%2B6@14.2.0-19?arch=amd64&distro=debian-13&upstream=gcc-14"
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "impact_statement": "Boundary: the matched Debian runtime packages do not contain the vulnerable alternate-target aligned-new size-rounding path. The exact hash-pinned libstdc++ runtime calls posix_memalign with the unrounded size; the upstream fix explicitly excludes modern posix_memalign configurations. gcc-14-base and libgcc-s1 do not ship the aligned-new implementation. This is an assessment of the actual compiled runtime, not a claim that every GCC target is patched. Evidence: https://github.com/gcc-mirror/gcc/commit/200183d4ab5d57575f3dfebc6af3baf649910b9e Reassess: on any C++ runtime hash, GCC target/configuration, native dependency or base-image change."
     }
   ]
 }
