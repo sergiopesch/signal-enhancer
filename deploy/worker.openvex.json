@@ -7,9 +7,9 @@
   "x-signal-enhancer-boundary": {
     "algorithm": "sha256",
     "paths": {
-      ".github/workflows/ci.yml": "ef5dbce041563914237546efea753cacd764a85a30c543dfd55d4161eaf62b96",
-      ".github/workflows/publish-worker.yml": "33d273b8f3625eea86e8914105d0ad35039ba25848247e0f8d3f0f3f7b07ec0c",
-      "deploy/render_worker_vex.py": "310f3f3b81d80ba7e23fa03de3c0eb948555449b5392d93e99fac5929612fb22",
+      ".github/workflows/ci.yml": "4cb3a9a1d06d4081d88e05984d55d8c8b172c595ce6313ad3ec8e7040e93442f",
+      ".github/workflows/publish-worker.yml": "0abdddc4235e1017e9ce25ef7ca1d8bd5113598695a53e8d184e078ec6729e52",
+      "deploy/render_worker_vex.py": "04f3589ae6b562fef565a8078b40cf95d94977c399e92e580e19c9ed7c1f3492",
       "deploy/test_render_worker_vex.py": "0a3ba19ff1cf9f2b8379a7cd477e3c817dbbbb724ae562706980616b1a669303",
       "deploy/test_verify_worker_native_boundary.py": "325aee45cebf5bb6a5cb98306f32817084c5b40796e55474c97a20b98ea1bcdb",
       "deploy/test_verify_worker_vex_results.py": "071f8d9cf8094aa08cb388c531aec18fb5fd329d1cda7ed73c4849b1162a5079",
@@ -17,11 +17,14 @@
       "deploy/verify_worker_vex_results.py": "795f138898c3f601111eff77021023f8e6ecf337d7a83681103356e508f5c7ca",
       "deploy/verify_worker_vex_scan.sh": "893e4e04ef2801a655cbe7af2a0c0210b534c87778671fc5db04b8fa1b27258f",
       "worker/.dockerignore": "a75d0c47ae79e3170ddb1dfbdad0cf51b29120ea13412619733d12ab63d1b399",
-      "worker/Dockerfile": "c75c6dc782db99e2c7841464dc018325fb9c5032b1845f7499231a7db720d96b",
-      "worker/pyproject.toml": "d80fafebe6d8e50398585f1aa204c181550a22729cb37a74dfb26a0aaf937daf",
+      "worker/Dockerfile": "c7e97389925063360027179c911134f411da56cd3690f1b989ff3ea642d3216d",
+      "worker/pyproject.toml": "015ed06964032fb53a983b5e0521ad19f10875f79c597c93e6c40cc7da8d72d7",
+      "worker/scripts/verify_resemble_core.py": "8572c7f0820b7a983f6b66c0eec96330dd6fca1dc4d59fc58bc241adadbd4416",
       "worker/src": "f67634ae0a0ea4595bf9a06d44ce756cf038438a65aa992b476d2dc6938f3d04",
+      "worker/tests/test_resemble_core_provenance.py": "5d2d0067160df723440ef1fbb0b6989ab75017feb48fa0d7c6b08764069d4bf2",
       "worker/tests/test_wav.py": "eef0f30a530ffd7648fa5e5dcead76953aaf12cb1f1d0b823a57594f88d84592",
-      "worker/uv.lock": "4a4545ebf0403a8289ad210edf99b8c85a80e459be2564ffce81b4e265c00a6f"
+      "worker/uv.lock": "447b0ff6067f631eb189b7ab8c439c52dc10a5824b805ed815f3ec496d63b110",
+      "worker/vendor/signal-resemble-core": "e082a56c56f9b0c98e059d37ac6e154b536b175fd21d81c7492b94c132e57a52"
     }
   },
   "statements": [

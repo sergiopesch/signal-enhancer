@@ -36,9 +36,12 @@ BOUNDARY_PATHS = {
     "worker/.dockerignore",
     "worker/Dockerfile",
     "worker/pyproject.toml",
+    "worker/scripts/verify_resemble_core.py",
     "worker/src",
+    "worker/tests/test_resemble_core_provenance.py",
     "worker/tests/test_wav.py",
     "worker/uv.lock",
+    "worker/vendor/signal-resemble-core",
 }
 IGNORED_BOUNDARY_NAMES = {".DS_Store", "__pycache__"}
 IGNORED_BOUNDARY_SUFFIXES = {".pyc", ".pyo"}

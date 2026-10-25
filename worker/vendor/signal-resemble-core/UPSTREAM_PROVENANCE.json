@@ -1,0 +1,276 @@
+{
+  "schema_version": 1,
+  "upstream_repository": "https://github.com/resemble-ai/resemble-enhance",
+  "upstream_revision": "8e978149bfe8abab3eb77d965d579a111afdb0ff",
+  "upstream_archive_sha256": "8dfd0f7ce54dc82fae4c349de9d216555928f17800bbfc7aad851d857e5491e8",
+  "distribution_name": "signal-resemble-core",
+  "distribution_version": "0.1.0",
+  "upstream_requirements": [
+    "celluloid>=0.2.0",
+    "deepspeed>=0.12.4",
+    "librosa>=0.10.1",
+    "matplotlib>=3.8.1",
+    "numpy>=1.26.2",
+    "omegaconf>=2.3.0",
+    "pandas>=2.1.3",
+    "ptflops>=0.7.1.2",
+    "rich>=13.7.0",
+    "scipy>=1.11.4",
+    "soundfile>=0.12.1",
+    "torch>=2.1.1",
+    "torchaudio>=2.1.1",
+    "torchvision>=0.16.1",
+    "tqdm>=4.66.1",
+    "resampy>=0.4.2",
+    "tabulate>=0.8.10",
+    "gradio>=4.8.0"
+  ],
+  "excluded_demo_requirement": "gradio>=4.8.0",
+  "files": [
+    {
+      "path": "resemble_enhance/__init__.py",
+      "git_blob": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "resemble_enhance/common.py",
+      "git_blob": "dfe3980103294a7b57fce918ffa8592f7b935c50",
+      "sha256": "675da1829bea4d8cac20a253e452dfbe546599c6886f99979d43be2578fa3916"
+    },
+    {
+      "path": "resemble_enhance/data/__init__.py",
+      "git_blob": "6ebc6373ce4e90804e2f12828b7d9467a85656e5",
+      "sha256": "d85bb70e0843216e1080f687fcfd3c3ebe2d255e3ae086742cf0b5c727b95459"
+    },
+    {
+      "path": "resemble_enhance/data/dataset.py",
+      "git_blob": "0ba57c1736367345d171c2fc4feceefbfc25362a",
+      "sha256": "c7a2988a8d49c7f3066d13ad2f9863bee654e5019ad3804b397b0d4793b33ab9"
+    },
+    {
+      "path": "resemble_enhance/data/distorter/__init__.py",
+      "git_blob": "ad059fd9af40fbfac1aceebf39fac6a09562c7de",
+      "sha256": "2e48ff07b2e6efa36fbfe3dd54918e9c94e2a97f6fd3b29ed5b1789cd25ec9d1"
+    },
+    {
+      "path": "resemble_enhance/data/distorter/base.py",
+      "git_blob": "d43d84fa840dd25804d9c5e5dc9673f65fdc5b94",
+      "sha256": "00f358781fcacaf9378aa71afca2d04809c52cd8c81b74a8e53480f3bcc95e9c"
+    },
+    {
+      "path": "resemble_enhance/data/distorter/custom.py",
+      "git_blob": "28428f7789cebb2d174c581111711f4d73f6565b",
+      "sha256": "dee3898a8659b843f405ab9b7e9012562148cb48ce8bfb9eecd9289778fbf8d5"
+    },
+    {
+      "path": "resemble_enhance/data/distorter/distorter.py",
+      "git_blob": "7f787a8cdbf941ae7c8e3ac925d1aa66dad5e978",
+      "sha256": "08b4bdf4ffaefd35653c710a58b3460a598dc5ff169f0de0554ce0fc4debab3c"
+    },
+    {
+      "path": "resemble_enhance/data/distorter/sox.py",
+      "git_blob": "92a2d74033d33b975141c1ece7ac5619d1dfcc39",
+      "sha256": "c5f7857c0339b375c639d1b7afb74c03d5cfab5cf7bf0a22315f32520dfa97c2"
+    },
+    {
+      "path": "resemble_enhance/data/utils.py",
+      "git_blob": "77f59d345b75cac76c6c423c734ae9c70a626590",
+      "sha256": "0877084924f9d4351ddee1b874979779028eb0abe25d43f9dcaca8f0d8922722"
+    },
+    {
+      "path": "resemble_enhance/denoiser/__init__.py",
+      "git_blob": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "resemble_enhance/denoiser/__main__.py",
+      "git_blob": "86188661c35d10721c94dc21f88f4babf45f6f7d",
+      "sha256": "d0fa73fca65fde0c197ac2756954d6f2cbd11bfebc4dfe380ef3fa13f83b9a88"
+    },
+    {
+      "path": "resemble_enhance/denoiser/denoiser.py",
+      "git_blob": "8b1d49cdc257a84073fd43b205f5f497386ce80f",
+      "sha256": "08fb8ad44cde940ad78776d7ca140dfefb113e172be7515878f39b8b1457d7e3"
+    },
+    {
+      "path": "resemble_enhance/denoiser/hparams.py",
+      "git_blob": "72ec1e5680e1f3323406f1206caf7945e0fb7b3b",
+      "sha256": "ab3abc1ca8f2814edd7e5a3461d78637a4c8e6c76ad1cfd2a89f86cf95b428f6"
+    },
+    {
+      "path": "resemble_enhance/denoiser/inference.py",
+      "git_blob": "78a33b2e643d6cfc45e9d1ca69068cf77fbe5ce3",
+      "sha256": "986f565b978e35dfc84ab917130165cb74c98dc1bf38545281d64f469c556ac2"
+    },
+    {
+      "path": "resemble_enhance/denoiser/train.py",
+      "git_blob": "90f08d27e051f82149ecbf0c6b03e768b055196b",
+      "sha256": "56914893fb3973449708d05121bf701952687633ba92d05c3776da2140420ff5"
+    },
+    {
+      "path": "resemble_enhance/denoiser/unet.py",
+      "git_blob": "2b8f78309ce03f776c4a6d9f28f1f9763c94ea7a",
+      "sha256": "13da1f566436e2416ca34010b595a26831fd39c1b1e296db6560fe0df4036aa5"
+    },
+    {
+      "path": "resemble_enhance/enhancer/__init__.py",
+      "git_blob": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "resemble_enhance/enhancer/__main__.py",
+      "git_blob": "0c1ad5ce68497c73756585009a59ea225c89ab94",
+      "sha256": "e4c312523314183c0029f6affe0550c1965d9a87a6b7d005bf32792944b08d64"
+    },
+    {
+      "path": "resemble_enhance/enhancer/download.py",
+      "git_blob": "614b9a4b4f9a1a10b79f12ca1a25821247ea2a16",
+      "sha256": "5c47bf7a47c89e74fafd9b915b2299c24df8723a8d0f78bf1d2f0f1e250b18da"
+    },
+    {
+      "path": "resemble_enhance/enhancer/enhancer.py",
+      "git_blob": "7fef9eb6a17ece2dd1f007a8018995351c783783",
+      "sha256": "6e6d6ece0df0f02d94c3fdf12ddd6d569f36bfd21d89f0bc81b7257166a66670"
+    },
+    {
+      "path": "resemble_enhance/enhancer/hparams.py",
+      "git_blob": "87d0588327fdaa99c79ddae11874a815766e28e0",
+      "sha256": "a74036ab7b8a031d7501486a7de2e9a6de9acae6520c91e4c81e4624f8f39c89"
+    },
+    {
+      "path": "resemble_enhance/enhancer/inference.py",
+      "git_blob": "c8f59d4bb73c703c397c45ef11ccf1603cf04b3d",
+      "sha256": "46bc03443e477118c3e09fde94db3e4431a48f2dfac65f63d6beab57b6b91427"
+    },
+    {
+      "path": "resemble_enhance/enhancer/lcfm/__init__.py",
+      "git_blob": "9eca51c6bc6b2132389ac7ec0380159169a69499",
+      "sha256": "cb74de38d184a307ca9a9156859a4699daf960300034130660ebc616bf32a1de"
+    },
+    {
+      "path": "resemble_enhance/enhancer/lcfm/cfm.py",
+      "git_blob": "4abe8d194f76ab02a8345ffe6ef0e346e0954583",
+      "sha256": "e2a920d0d0dcbbaef08c6fd8fbba21fa03fc06641224db6941a9327bae3b5db2"
+    },
+    {
+      "path": "resemble_enhance/enhancer/lcfm/irmae.py",
+      "git_blob": "e71ab0cd8b9f07c3c27ca3877ee79b6510445d1f",
+      "sha256": "10ff0e32d24b55caa7b0af02002645621d815a178e05abb7760cdde7d3ec87fd"
+    },
+    {
+      "path": "resemble_enhance/enhancer/lcfm/lcfm.py",
+      "git_blob": "4c2f5f88718e2f42f82e2f4714ea510b4677b450",
+      "sha256": "97ed3982a8c94a7070c9a3295f764610387191776a13fd504279abdcdd475dd5"
+    },
+    {
+      "path": "resemble_enhance/enhancer/lcfm/wn.py",
+      "git_blob": "8bde173c205bb74f30ed95a9f013b3eb5b2abe5a",
+      "sha256": "649d0c55699a0363e9e9e661b761faed98f6f3f394b022380e4fff547956eb8d"
+    },
+    {
+      "path": "resemble_enhance/enhancer/train.py",
+      "git_blob": "e9d2a6fe765f14b0700227f6904a2cff423d4074",
+      "sha256": "1ed24e2fe84ec61235577e99f6bba7d5aecce3eff649ce2d1c82a451a51fde81"
+    },
+    {
+      "path": "resemble_enhance/enhancer/univnet/__init__.py",
+      "git_blob": "d4d2fea066e2e71371c6af840e759f1676380170",
+      "sha256": "e217a0bce1ed367d7dd8feedbe2d67a77e99256e161f64a887542a828109ec1a"
+    },
+    {
+      "path": "resemble_enhance/enhancer/univnet/alias_free_torch/__init__.py",
+      "git_blob": "270596c8f44f9295026cf308b39151a08dbed85a",
+      "sha256": "d5e4587b0a372029705f55ff1c35bf6e08763a483de36e33f391e10af7dd4f71"
+    },
+    {
+      "path": "resemble_enhance/enhancer/univnet/alias_free_torch/filter.py",
+      "git_blob": "5165557d7dcadcb4d07018e13562b22f8c85e91e",
+      "sha256": "3534e2fe065399c9332541e6f9b600bbef8dde9fe8ad0a753b79b4346d4cd633"
+    },
+    {
+      "path": "resemble_enhance/enhancer/univnet/alias_free_torch/resample.py",
+      "git_blob": "7fc6e12a9dbaa9ac41bd349b7f1797442052e4f6",
+      "sha256": "7f0fcf223b03d260930f86cb21d2a21932ed7930687ca0570b566fc27bb114b2"
+    },
+    {
+      "path": "resemble_enhance/enhancer/univnet/amp.py",
+      "git_blob": "469026338771408a24253ae52c8f2f22a6057475",
+      "sha256": "ea3e584f47ae835bfebbd6036b8ef7ed4fe9b01b3559453024256772991f7beb"
+    },
+    {
+      "path": "resemble_enhance/enhancer/univnet/discriminator.py",
+      "git_blob": "ef3bd2552ea6f7f654c72737e079ce3239835d68",
+      "sha256": "aa6038be73b18a035f9dce80007e3987ab22afa27db89b55d75b9a84fcface59"
+    },
+    {
+      "path": "resemble_enhance/enhancer/univnet/lvcnet.py",
+      "git_blob": "da56619090206c45fece0bc2c70e8fd3d2513704",
+      "sha256": "75a6cd226c087afbc7ebb79c58bd0a0a7e4c5ae4ec70760442e1e1a8ecb672cb"
+    },
+    {
+      "path": "resemble_enhance/enhancer/univnet/mrstft.py",
+      "git_blob": "ce95b43269c17ff05736bc338220e59345524309",
+      "sha256": "394ce2d1a5ea90bf1922bb02ad849783edc82f1ce868d760d3de33308cb7337e"
+    },
+    {
+      "path": "resemble_enhance/enhancer/univnet/univnet.py",
+      "git_blob": "bb20217f048f398236698f6a38927310d0c1ba9b",
+      "sha256": "c13501d780081ae8d46e2aac80cb9b88c262e053533368d11f8f14b3e31266b7"
+    },
+    {
+      "path": "resemble_enhance/hparams.py",
+      "git_blob": "a8e716175fa962ada1d98cd755430e2ea770278c",
+      "sha256": "f0ab1195a3e6a7869e2f1ad3279f064df57717fa6486540375ed816b00290194"
+    },
+    {
+      "path": "resemble_enhance/inference.py",
+      "git_blob": "6e78a11fdf134bcc182e5c9ef0cf81e02c64850b",
+      "sha256": "e70f97b2203879185c4c136fbee519cddf65290264f5ac2d8bbb4f9b7e93d32e"
+    },
+    {
+      "path": "resemble_enhance/melspec.py",
+      "git_blob": "dce1f8bfb95b9a1814db8c7305c07ccf2bfa9111",
+      "sha256": "b80ddfad3e0cb10a583eead8436b63729803e3990b6d96601104d688105c32e5"
+    },
+    {
+      "path": "resemble_enhance/utils/__init__.py",
+      "git_blob": "f65d6a762efdbbd3370a081b16fd02608fa1c4e6",
+      "sha256": "ef7b9d042959b7ffbd74d27f80427b5f764bf509eb22d39fc7a48f38471155aa"
+    },
+    {
+      "path": "resemble_enhance/utils/control.py",
+      "git_blob": "56b74b46d73b0c3757849dad310ca0899bb5f5a4",
+      "sha256": "d8f82ff89af99cf931bbd68eb6e0ccabfec1ae54fa940d91b015e13f044e04c3"
+    },
+    {
+      "path": "resemble_enhance/utils/distributed.py",
+      "git_blob": "f0b82c096b65aed2697a737b4bafced053499bd8",
+      "sha256": "2d9e805f9cb5a390e449534485f22901a0b1b8eee19d38381f1aa7c9e21a14af"
+    },
+    {
+      "path": "resemble_enhance/utils/engine.py",
+      "git_blob": "2ad919ef8dcad34b2320f05e29baddd7a764561c",
+      "sha256": "550bae1158d61c3f44e95939a14c8a1c0fe2578cf87ccbd7b381923acc161be4"
+    },
+    {
+      "path": "resemble_enhance/utils/logging.py",
+      "git_blob": "26c43b6dc785ff6547478cb04833dd92b5df7311",
+      "sha256": "6bd0c8333452d7c245b17796542f6e52384117c3fc67a532554a7533ca46bee6"
+    },
+    {
+      "path": "resemble_enhance/utils/train_loop.py",
+      "git_blob": "174a993b3c593d0a0f71d8976e14f349492a36c9",
+      "sha256": "6f8c8b95649e21777ca13cb9f88015fee3470b7218866d3e154839111c54ce19"
+    },
+    {
+      "path": "resemble_enhance/utils/utils.py",
+      "git_blob": "c402c9ae2bd634e903d2a9861243005e6a8c9147",
+      "sha256": "e004f02f45cc083ffe56d0d8869f23f423adced6226da6a769b9004e1fe224b8"
+    },
+    {
+      "path": "LICENSE",
+      "git_blob": "2d7142fec5f1d19a870296cfa703e8bc18220a09",
+      "sha256": "f4f7ca80af15e1d06a99e92e268b4294b116c71e1ca10d7bcc02c36ff22b94b7"
+    }
+  ]
+}

@@ -24,9 +24,14 @@ RUN python -m pip install --no-deps \
 
 COPY pyproject.toml uv.lock README.md THIRD_PARTY_NOTICES.md ./
 COPY src ./src
+COPY vendor ./vendor
+COPY scripts/verify_resemble_core.py /usr/local/libexec/verify_resemble_core.py
+
+RUN python /usr/local/libexec/verify_resemble_core.py --source vendor/signal-resemble-core
 
 RUN if [ "$INSTALL_RESEMBLE" = "1" ]; then \
-      uv sync --frozen --no-dev --no-editable --extra resemble; \
+      uv sync --frozen --no-dev --no-editable --extra resemble \
+        && .venv/bin/python /usr/local/libexec/verify_resemble_core.py --installed; \
     else \
       uv sync --frozen --no-dev --no-editable; \
     fi
@@ -77,6 +82,7 @@ RUN apt-get update \
       /tmp/signal-enhancer
 
 COPY --from=builder /app/.venv /app/.venv
+COPY --from=builder --chmod=0644 /usr/local/libexec/verify_resemble_core.py /usr/local/libexec/verify_resemble_core.py
 
 USER 10001:10001
 EXPOSE 7860

@@ -67,7 +67,9 @@ jobs:
           trap 'rm -rf "$audit_dir"' EXIT
           requirements="$audit_dir/locked.txt"
           auditable="$audit_dir/auditable.txt"
-          pinned_source='resemble-enhance @ git+https://github.com/resemble-ai/resemble-enhance.git@8e978149bfe8abab3eb77d965d579a111afdb0ff'
+          pinned_source='./vendor/signal-resemble-core'
+          python3 worker/scripts/verify_resemble_core.py \
+            --source worker/vendor/signal-resemble-core
           uv export \
             --directory worker \
             --frozen \
@@ -109,7 +111,10 @@ jobs:
           python3 deploy/validate_worker_release.py \
             --inspect-json "$inspect_file" \
             --expected-build-revision "$GITHUB_SHA"
+          docker run --rm --entrypoint python "$WORKER_IMAGE" \
+            /usr/local/libexec/verify_resemble_core.py --installed
           docker run --rm --interactive --entrypoint python "$WORKER_IMAGE" - <<'PY'
+          import importlib.metadata
           import os
           import stat
           from pathlib import Path
@@ -129,7 +134,6 @@ jobs:
               assert stat.S_IMODE(metadata.st_mode) == 0o700
 
           import deepspeed
-          import gradio
           import torch
           import torchaudio
           import torchvision
@@ -150,7 +154,7 @@ jobs:
           assert callable(inference.enhance)
           print(
               "production image dependency smoke passed:",
-              gradio.__version__,
+              importlib.metadata.version("signal-resemble-core"),
               torch.__version__,
               torchaudio.__version__,
               torchvision.__version__,
@@ -221,7 +225,7 @@ jobs:
               package.get("name", "").lower().replace("_", "-")
               for package in sbom.get("packages", [])
           }
-          required = {"resemble-enhance", "torch", "torchaudio", "signal-enhancer-worker"}
+          required = {"signal-resemble-core", "torch", "torchaudio", "signal-enhancer-worker"}
           missing = sorted(required - packages)
           assert not missing, f"production packages missing from SBOM: {', '.join(missing)}"
           PY
