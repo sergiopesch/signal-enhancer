@@ -70,6 +70,8 @@ class WorkerReleaseValidationTests(unittest.TestCase):
                 "Architecture": "amd64",
                 "Config": {
                     "User": "10001:10001",
+                    "Cmd": ["python", "/usr/local/libexec/run_worker.py"],
+                    "Entrypoint": None,
                     "Labels": {
                         "org.opencontainers.image.revision": build_revision,
                         "io.signal-enhancer.resemble-installed": "1",
@@ -105,6 +107,23 @@ class WorkerReleaseValidationTests(unittest.TestCase):
 
     def test_checked_in_policy_is_valid(self) -> None:
         validate_policy(self.policy)
+
+    def test_image_cannot_introduce_dynamic_loader_overrides(self) -> None:
+        for override in ("LD_PRELOAD=untrusted.so", "LD_AUDIT=", "LD_LIBRARY_PATH=/tmp"):
+            inspect = self.image_inspect()
+            inspect[0]["Config"]["Env"].append(override)
+            with self.subTest(override=override), self.assertRaises(ReleaseValidationError):
+                validate_inspect(inspect, self.policy, "a" * 40)
+
+    def test_worker_image_cannot_bypass_the_runtime_privilege_guard(self) -> None:
+        for replacement in (
+            {"Cmd": ["uvicorn", "signal_enhancer_worker.app:app"]},
+            {"Entrypoint": ["/bin/sh", "-c"]},
+        ):
+            inspect = self.image_inspect()
+            inspect[0]["Config"].update(replacement)
+            with self.subTest(replacement=replacement), self.assertRaises(ReleaseValidationError):
+                validate_inspect(inspect, self.policy, "a" * 40)
 
     def test_worker_image_requires_the_runtime_cache_environment_contract(self) -> None:
         inspect = self.image_inspect()
@@ -196,6 +215,7 @@ class WorkerReleaseValidationTests(unittest.TestCase):
     def test_endpoint_rejects_identity_and_entrypoint_overrides(self) -> None:
         for path, value in (
             (("model", "env", "SIGNAL_BUILD_REVISION"), "a" * 40),
+            (("model", "env", "LD_PRELOAD"), "untrusted.so"),
             (("model", "command"), ["python", "unexpected.py"]),
             (("model", "args"), ["--unsafe"]),
             (("model", "task"), "text-generation"),

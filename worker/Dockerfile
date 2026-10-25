@@ -2,7 +2,7 @@
 ARG INSTALL_RESEMBLE=1
 
 # Keep the readable security-release tag while pinning the exact multi-platform image index.
-FROM --platform=linux/amd64 python:3.12.13-slim-trixie@sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de AS builder
+FROM --platform=linux/amd64 python:3.12.15-slim-trixie@sha256:a0f57064cbdcd6285fa45f51237ab0b35ea8ebaed06a1f5973e89e19dfb86704 AS builder
 
 ARG INSTALL_RESEMBLE
 
@@ -24,14 +24,19 @@ RUN python -m pip install --no-deps \
 
 COPY pyproject.toml uv.lock README.md THIRD_PARTY_NOTICES.md ./
 COPY src ./src
+COPY vendor ./vendor
+COPY scripts/verify_resemble_core.py /usr/local/libexec/verify_resemble_core.py
+
+RUN python /usr/local/libexec/verify_resemble_core.py --source vendor/signal-resemble-core
 
 RUN if [ "$INSTALL_RESEMBLE" = "1" ]; then \
-      uv sync --frozen --no-dev --no-editable --extra resemble; \
+      uv sync --frozen --no-dev --no-editable --extra resemble \
+        && .venv/bin/python /usr/local/libexec/verify_resemble_core.py --installed; \
     else \
       uv sync --frozen --no-dev --no-editable; \
     fi
 
-FROM --platform=linux/amd64 python:3.12.13-slim-trixie@sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de AS runtime
+FROM --platform=linux/amd64 python:3.12.15-slim-trixie@sha256:a0f57064cbdcd6285fa45f51237ab0b35ea8ebaed06a1f5973e89e19dfb86704 AS runtime
 
 ARG INSTALL_RESEMBLE
 ARG SIGNAL_BUILD_REVISION=dev
@@ -77,6 +82,39 @@ RUN apt-get update \
       /tmp/signal-enhancer
 
 COPY --from=builder /app/.venv /app/.venv
+COPY --from=builder --chmod=0644 /usr/local/libexec/verify_resemble_core.py /usr/local/libexec/verify_resemble_core.py
+COPY --chmod=0644 scripts/run_worker.py /usr/local/libexec/run_worker.py
+
+# The service needs no set-ID helpers or executable file capabilities.
+RUN python - <<'PY_RUNTIME'
+import hashlib
+import os
+import stat
+from pathlib import Path
+
+for current, directories, names in os.walk("/", topdown=True, followlinks=False):
+    directories[:] = [name for name in directories if str(Path(current, name)) not in {"/dev", "/proc", "/run", "/sys"}]
+    for name in names:
+        path = Path(current, name)
+        metadata = path.lstat()
+        if not stat.S_ISREG(metadata.st_mode):
+            continue
+        if metadata.st_mode & (stat.S_ISUID | stat.S_ISGID):
+            path.chmod(stat.S_IMODE(metadata.st_mode) & ~(stat.S_ISUID | stat.S_ISGID))
+        if "security.capability" in os.listxattr(path, follow_symlinks=False):
+            os.removexattr(path, "security.capability", follow_symlinks=False)
+
+# The immutable audio service performs no package installation at runtime.
+# Keep package records for the SBOM while denying access to the two gzip writers.
+for filename, expected_sha256 in {
+    "/usr/bin/dpkg-deb": "5346e5fdfdc81d58bbc9d2a3de20ff3738dc479cdb04cc52b91503cbb13440eb",
+    "/usr/lib/x86_64-linux-gnu/libapt-pkg.so.7.0.0": "d3dca8bc35a1addcc03808792768ce82ca59bb3623f8053e58b3402ac5898974",
+}.items():
+    path = Path(filename)
+    assert path.stat().st_uid == 0 and path.stat().st_gid == 0
+    assert hashlib.file_digest(path.open("rb"), "sha256").hexdigest() == expected_sha256
+    path.chmod(0)
+PY_RUNTIME
 
 USER 10001:10001
 EXPOSE 7860
@@ -84,4 +122,4 @@ EXPOSE 7860
 HEALTHCHECK --interval=20s --timeout=4s --start-period=90s --retries=3 \
   CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:7860/health', timeout=3)"
 
-CMD ["uvicorn", "signal_enhancer_worker.app:app", "--host", "0.0.0.0", "--port", "7860", "--no-access-log"]
+CMD ["python", "/usr/local/libexec/run_worker.py"]

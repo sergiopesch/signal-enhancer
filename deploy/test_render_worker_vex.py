@@ -6,7 +6,7 @@ import re
 import unittest
 from pathlib import Path
 
-from render_worker_vex import VexRenderError, load_json, render_vex
+from render_worker_vex import VexRenderError, _validated_policy_statements, load_json, render_vex
 
 POLICY_PATH = Path(__file__).with_name("worker.openvex.json")
 REPOSITORY_ROOT = POLICY_PATH.parent.parent
@@ -15,39 +15,24 @@ IMAGE_PURL = (
     "pkg:oci/local%2Fsignal-enhancer-worker@sha256%3A" + "a" * 64 + "?arch=amd64&tag=release"
 )
 EXPECTED_CVES = {
+    "CVE-2026-102010",
+    "CVE-2026-19499",
+    "CVE-2026-76642",
+    "CVE-2026-78408",
+    "CVE-2026-78409",
+    "CVE-2026-78410",
+    "CVE-2026-82560",
+    "CVE-2026-85091",
+    "CVE-2026-88372",
+    "CVE-2026-95619",
     "CVE-2025-69720",
-    "CVE-2026-11822",
-    "CVE-2026-11824",
-    "CVE-2026-11940",
-    "CVE-2026-11972",
-    "CVE-2026-12087",
-    "CVE-2026-13221",
-    "CVE-2026-15308",
-    "CVE-2026-3298",
-    "CVE-2026-3644",
     "CVE-2026-37555",
-    "CVE-2026-41992",
-    "CVE-2026-4224",
-    "CVE-2026-42496",
-    "CVE-2026-42497",
-    "CVE-2026-4786",
-    "CVE-2026-48959",
-    "CVE-2026-48961",
-    "CVE-2026-48962",
     "CVE-2026-5435",
     "CVE-2026-54369",
     "CVE-2026-54370",
-    "CVE-2026-5450",
-    "CVE-2026-57432",
-    "CVE-2026-57433",
-    "CVE-2026-5928",
-    "CVE-2026-6100",
-    "CVE-2026-7017",
-    "CVE-2026-7210",
-    "CVE-2026-8376",
     "CVE-2026-9538",
-    "CVE-2026-9669",
 }
+
 FORBIDDEN_RUNTIME_MODULES = {
     "bz2",
     "cffi",
@@ -107,6 +92,14 @@ class WorkerVexTests(unittest.TestCase):
         rendered = render_vex(self.policy, self.sbom())
         self.assertEqual(len(EXPECTED_CVES), len(rendered["statements"]))
 
+    def test_policy_accepts_only_the_reviewed_integer_document_revision(self) -> None:
+        self.assertEqual(16, len(_validated_policy_statements(self.policy)))
+        for version in (0, 1, 3, True, 2.0, "2"):
+            candidate = copy.deepcopy(self.policy)
+            candidate["version"] = version
+            with self.subTest(version=version), self.assertRaises(VexRenderError):
+                _validated_policy_statements(candidate)
+
     def test_worker_source_preserves_reviewed_execution_boundaries(self) -> None:
         violations: list[str] = []
         for source_path in sorted(WORKER_SOURCE.rglob("*.py")):
@@ -159,8 +152,8 @@ class WorkerVexTests(unittest.TestCase):
         dockerfile = (REPOSITORY_ROOT / "worker" / "Dockerfile").read_text(encoding="utf-8")
         expected = (
             "FROM --platform=linux/amd64 "
-            "python:3.12.13-slim-trixie@sha256:"
-            "57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de"
+            "python:3.12.15-slim-trixie@sha256:"
+            "a0f57064cbdcd6285fa45f51237ab0b35ea8ebaed06a1f5973e89e19dfb86704"
         )
         self.assertEqual(2, dockerfile.count(expected))
         self.assertNotIn("bookworm", dockerfile)
@@ -197,13 +190,15 @@ class WorkerVexTests(unittest.TestCase):
         sbom = self.sbom()
         packages = sbom["packages"]
         self.assertIsInstance(packages, list)
-        python_package = next(
+        glibc_package = next(
             package
             for package in packages
             if package.get("externalRefs", [{}])[0].get("referenceLocator")
-            == "pkg:generic/python@3.12.13"
+            == "pkg:deb/debian/libc6@2.41-12%2Bdeb13u4?arch=amd64&distro=debian-13&upstream=glibc"
         )
-        python_package["externalRefs"][0]["referenceLocator"] = "pkg:generic/python@3.12.12"
+        glibc_package["externalRefs"][0]["referenceLocator"] = (
+            "pkg:deb/debian/libc6@2.41-12%2Bdeb13u3?arch=amd64&distro=debian-13&upstream=glibc"
+        )
         with self.assertRaises(VexRenderError):
             render_vex(self.policy, sbom)
 

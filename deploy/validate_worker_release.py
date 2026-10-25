@@ -178,6 +178,8 @@ def validate_inspect(document: Any, policy: Any, build_revision: str) -> None:
     require_equal(image, "linux", "Os")
     require_equal(image, "amd64", "Architecture")
     require_equal(image, "10001:10001", "Config", "User")
+    require_equal(image, ["python", "/usr/local/libexec/run_worker.py"], "Config", "Cmd")
+    require_unset(image, "Config", "Entrypoint")
     require_equal(image, build_revision, "Config", "Labels", "org.opencontainers.image.revision")
     require_equal(image, "1", "Config", "Labels", "io.signal-enhancer.resemble-installed")
     require_equal(
@@ -214,6 +216,8 @@ def validate_inspect(document: Any, policy: Any, build_revision: str) -> None:
         if not separator or not ENVIRONMENT_NAME.fullmatch(name) or name in parsed_environment:
             raise ReleaseValidationError("worker image environment entries are invalid")
         parsed_environment[name] = value
+    if any(name.startswith("LD_") for name in parsed_environment):
+        raise ReleaseValidationError("worker image contains a dynamic-loader override")
     required_environment = {
         "LANG": "C.UTF-8",
         "LC_ALL": "C.UTF-8",

@@ -30,15 +30,26 @@ BOUNDARY_PATHS = {
     "deploy/test_render_worker_vex.py",
     "deploy/test_verify_worker_native_boundary.py",
     "deploy/test_verify_worker_vex_results.py",
+    "deploy/test_validate_worker_release.py",
+    "deploy/validate_worker_release.py",
+    "deploy/create_huggingface_endpoint.py",
+    "deploy/test_create_huggingface_endpoint.py",
+    "deploy/huggingface-endpoint.production.json",
+    "worker/scripts/deploy_huggingface_endpoint.sh",
     "deploy/verify_worker_native_boundary.py",
     "deploy/verify_worker_vex_results.py",
     "deploy/verify_worker_vex_scan.sh",
     "worker/.dockerignore",
     "worker/Dockerfile",
     "worker/pyproject.toml",
+    "worker/scripts/verify_resemble_core.py",
+    "worker/scripts/run_worker.py",
+    "worker/tests/test_runtime_boundary.py",
     "worker/src",
+    "worker/tests/test_resemble_core_provenance.py",
     "worker/tests/test_wav.py",
     "worker/uv.lock",
+    "worker/vendor/signal-resemble-core",
 }
 IGNORED_BOUNDARY_NAMES = {".DS_Store", "__pycache__"}
 IGNORED_BOUNDARY_SUFFIXES = {".pyc", ".pyo"}
@@ -148,8 +159,10 @@ def _root_image_purl(sbom: Any) -> str:
 def _validated_policy_statements(policy: Any) -> list[dict[str, Any]]:
     if not isinstance(policy, dict) or policy.get("@context") != "https://openvex.dev/ns/v0.2.0":
         raise VexRenderError("component policy is not OpenVEX 0.2")
+    version = policy.get("version")
     if (
-        policy.get("version") != 1
+        not isinstance(version, int)
+        or version != 2
         or not isinstance(policy.get("@id"), str)
         or not isinstance(policy.get("author"), str)
     ):

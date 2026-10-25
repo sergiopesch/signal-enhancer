@@ -117,7 +117,32 @@ uv pip check --python .venv/bin/python
 
 ## Container and Hugging Face
 
-The image is fixed to `linux/amd64`, uses a digest-pinned Python 3.12.13 security-release base,
+The image starts through a fixed launcher that requires UID/GID 10001, including saved
+identities, zero effective/permitted/inheritable/ambient capabilities, and the Linux
+`no_new_privs` flag before replacing itself with the existing Uvicorn command. It also
+closes inherited descriptors above stdin/stdout/stderr, so a parent cannot accidentally
+pass privileged open-file authority into the service. The
+final image removes set-ID modes and executable file capabilities. Image validation
+rejects a command or entrypoint that bypasses this launcher; provider command overrides
+also remain prohibited. The audio API and fixed Uvicorn arguments stay the same. Actual CUDA inference
+still requires the release GPU checks.
+
+The service account cannot read, execute, or load the exact inherited `dpkg-deb`
+and `libapt-pkg` gzip writers: their bytes are pinned, their owner is root, and
+their mode is `000`. Startup verifies those denials and rejects loader overrides
+or an already loaded package library. Dependency changes happen during image builds.
+The native audit uses a separate disposable root container: it inventories the original
+bytes, modes and owners, temporarily enables only `dpkg-deb` to install trusted audit
+tools, restores mode `000`, and verifies every original file before reporting a pass.
+SBOM and vulnerability scans use the immutable image rather than that audit container.
+
+The native source audit distinguishes the exact, hash-verified Pygments PHP keyword
+table from a native symbol lookup. Its names are syntax-highlighting data; cached
+bytecode must match the compiler output of that same reviewed source. Altered source,
+altered bytecode, other files, and actual native imports/lookups remain blocking.
+A Pygments source update therefore requires another provenance review.
+
+The image is fixed to `linux/amd64`, uses a digest-pinned Python 3.12.15 security-release base,
 installs from the committed `uv.lock`, runs as UID/GID 10001, disables Uvicorn access logs, and
 uses port 7860 plus `/health` for readiness. The unprivileged account has a private `0700` home
 and cache tree at `/var/lib/signal-enhancer`; DeepSpeed's Triton cache is confined there instead of
@@ -167,7 +192,8 @@ a hard stop requiring immediate manual deletion. Promote the new endpoint URL to
 authenticated `/version` and model-backed `/health` checks pass; retire the prior endpoint only
 after in-flight jobs have drained.
 
-The model source revision is pinned in `pyproject.toml`; model files must also be pinned from
+The model source revision is pinned in the local core's verified provenance manifest;
+model files must also be pinned from
 `ResembleAI/resemble-enhance@4e3510ce4a8391159f665903544c5150bee7b2cb` and mounted at
 `SIGNAL_RESEMBLE_RUN_DIR`. Before importing Torch or calling upstream `torch.load`, startup verifies
 all three required artifacts against the checked-in SHA-256 manifest: the 713 MB checkpoint,
@@ -199,19 +225,25 @@ The Linux lock resolves Torch's CUDA 13 runtime. Treat a successful `/health` pr
 GPU instance as a promotion gate; the worker fails closed when its configured CUDA device is not
 available.
 
-The optional dependency is
+The optional dependency packages the unchanged Python namespace from
 [Resemble Enhance](https://github.com/resemble-ai/resemble-enhance), pinned to
 `8e978149bfe8abab3eb77d965d579a111afdb0ff`. Its MIT notice is recorded in
-`THIRD_PARTY_NOTICES.md` and remains present in the installed distribution.
+`THIRD_PARTY_NOTICES.md` and remains present in the installed `signal-resemble-core`
+distribution. The standalone web demo is not used by this worker, so its Gradio
+dependency is excluded from the downstream package metadata. All other original
+requirements remain, and Pillow 13 is resolved normally. Build and runtime checks
+verify every upstream Python file, the complete license, the original CLI
+entrypoint, and the exact downstream dependency metadata.
 
 The production dependency set is resolved in `uv.lock`, including the newest compatible
 TorchAudio maintenance release. CI builds the actual `INSTALL_RESEMBLE=1` image, checks its OCI
 revision/model labels and non-root identity, smoke-tests the Resemble import path and exact
 TorchAudio operations inside that image, exercises its HTTP health contract, emits an SPDX JSON
 SBOM, and blocks high or critical image vulnerabilities. It also audits every registry package
-from a hash-locked export. The Resemble source distribution is not represented in PyPI's advisory
-database; CI therefore asserts its exact Git revision before excluding that single line from the
-registry audit. The image scan starts from the reviewed, version-scoped OpenVEX component policy
+from a hash-locked export. The local source distribution is not represented in PyPI's advisory
+database; CI therefore verifies its complete immutable source manifest and exact package
+metadata before excluding that one local-package line from the registry audit. Every registry
+dependency remains audited. The image scan starts from the reviewed, version-scoped OpenVEX component policy
 in `deploy/worker.openvex.json`, verifies every component against the SBOM, and renders statements
 with exact package-version products plus the SBOM's immutable image PURL as issuance evidence. It
 also proves the locale and native-symbol boundaries used by the glibc assessments, compares every

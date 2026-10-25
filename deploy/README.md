@@ -31,12 +31,29 @@ immutable issuance evidence rather than the scanner's matching key. CI proves bo
 matching and a deliberately changed package version that must remain active. A new CVE, package
 version, architecture, or unproven source/native boundary is not suppressed.
 
+The native guard distinguishes two exact NVRTC 13.0.88 compiler metadata records from host
+symbol lookups. It binds both official wheel ELF hashes, the sole `__builtin_strfmon` occurrence,
+its adjacent names, the complete builtin type/ID table, and its relative relocation. Independent
+static review traces registration into an identifier hash table and the fixed NVIDIA loader API
+names. An actual undefined import, another occurrence, path, symbol, or changed byte still fails.
+This classifies compiler data; it adds no CVE assessment. NVIDIA's
+[archived NVRTC guide](https://docs.nvidia.com/cuda/archive/13.0.1/nvrtc/index.html#execution-space)
+describes its device-only compilation purpose. The strict worker API accepts audio descriptors
+and rejects extra fields; the adapter verifies fixed source/checkpoint revisions and uses fixed
+inference settings. Requests cannot supply compiler source, kernels, model code, or loader options.
+Those application boundaries corroborate the exact binary review and do not replace it.
+
 SoundFile 0.13.1's Linux wheel also bundles libsndfile 1.2.2 and prefers that copy over the Debian
 library. The CVE-2026-37555 assessment therefore pins both package PURLs and relies on the tested
 PCM/float-only parser boundary; removing the Debian package alone is not remediation.
 
 CI cannot prove that Hugging Face mounted the checkpoint, that the selected L4 exposes CUDA, or
 that a published registry digest contains the bytes CI scanned. Those remain promotion gates.
+The native assessments describe the immutable built image and its frozen dependencies. Before
+production promotion, provider-injected driver libraries and other runtime extensions require a
+fresh native-boundary review; they are not covered by the image's ELF inventory or VEX. Keep the
+fixed launch and loader controls in force. Successful source, native and security checks can
+qualify source merge while those GPU and provider promotion gates remain pending.
 
 ## Production invariant set
 
