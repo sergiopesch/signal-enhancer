@@ -44,6 +44,39 @@ DISABLED_PACKAGE_WRITERS = {
     "/usr/lib/x86_64-linux-gnu/libapt-pkg.so.7.0.0": "d3dca8bc35a1addcc03808792768ce82ca59bb3623f8053e58b3402ac5898974",
 }
 DISABLED_WRITER_SYMBOLS = {"gzwrite"}
+# Official locked nvidia-cuda-nvrtc13.0.88 wheel SHA256
+# ad9b6d2ead2435f11cbb6868809d2adeeee302e9bb94bcf0539c7a40d80e8575.
+# Each exact ELF has one strfmon substring in a compiler name/type/ID table.
+# Registration copies names into an identifier hash table, including optional
+# __builtin_ aliases. Its loader calls resolve fixed NVIDIA APIs, not strfmon.
+# This classifies immutable metadata only; it never permits an undefined import.
+NVRTC_BUILTIN_METADATA = {
+    "/app/.venv/lib/python3.12/site-packages/nvidia/cu13/lib/libnvrtc.so.13": {
+        "sha256": "a49e67e8e74590f1e98de55c39c6287efd3f59e3c3797464d7bbe0fe01349b11",
+        "name_offset": 84121488,
+        "name_address": 0x5039790,
+        "descriptor_offset": 0x66B4DC0,
+        "descriptor_address": 0x66B5DC0,
+        "relocation_offset": 4504824,
+        "table_offset": 107666528,
+        "table_sha256": "64fb9036763794fa9dbb5529452c5517cc9025e4945fa8a7bac8551ae827404c",
+    },
+    "/app/.venv/lib/python3.12/site-packages/nvidia/cu13/lib/libnvrtc.alt.so.13": {
+        "sha256": "c1e3f9b5194970fb1de865620a67a5c7e7ea199425df8df5963bd883f843acb6",
+        "name_offset": 84125736,
+        "name_address": 0x503A828,
+        "descriptor_offset": 0x66B5E00,
+        "descriptor_address": 0x66B6E00,
+        "relocation_offset": 4505016,
+        "table_offset": 107670688,
+        "table_sha256": "666a2e078c858a6d67b3691d09ee5f9c3757d6f57a5a3a3586b011faf4ec021d",
+    },
+}
+NVRTC_BUILTIN_CONTEXT = (
+    b"\0__builtin_strdup\0__builtin_strfmon\0__builtin_strftime\0__builtin_strlen\0"
+)
+NVRTC_BUILTIN_TABLE_BYTES = (2264 + 1) * 16
+NVRTC_BUILTIN_ROW_INDEX = 1814
 ALLOCATING_SCANF_BYTES = re.compile(rb"%(?:[0-9]+\$)?['I]*([0-9]+)m(?:lc|[cC])")
 SYMBOL_PROVIDERS = {"libc.so.6", "libresolv.so.2"}
 READELF = "/usr/bin/readelf"
@@ -115,15 +148,89 @@ def _native_reference_violations(
     mode: int,
     sha256: str,
 ) -> tuple[set[str], set[str], bool]:
-    disabled = _is_disabled_package_writer(path, uid=uid, gid=gid, mode=mode, sha256=sha256)
+    disabled = _is_disabled_package_writer(
+        path, uid=uid, gid=gid, mode=mode, sha256=sha256
+    )
     permitted = DISABLED_WRITER_SYMBOLS if disabled else set()
     references = (imported & FORBIDDEN_IMPORTS) - permitted
+    builtin_metadata = (
+        "strfmon" in symbol_strings
+        and not imported & FORBIDDEN_IMPORTS
+        and _is_verified_nvrtc_builtin_data(path, sha256)
+    )
     lookups = {
         symbol
         for symbol in symbol_strings & FORBIDDEN_IMPORTS
-        if not _is_symbol_provider(path, symbol) and symbol not in permitted
+        if not _is_symbol_provider(path, symbol)
+        and symbol not in permitted
+        and not (symbol == "strfmon" and builtin_metadata)
     }
+    if builtin_metadata:
+        print(f"verified immutable NVRTC builtin-name metadata: {path}")
     return references, lookups, disabled
+
+
+def _is_verified_nvrtc_builtin_data(path: Path, sha256: str) -> bool:
+    """Bind one inert compiler-name record to its fully reviewed ELF bytes.
+
+    The full binary hash binds its instruction/loader dataflow review. Separate
+    exact occurrence, context, table and RELATIVE relocation checks make the
+    metadata boundary explicit. No library or subject code is loaded/executed.
+    """
+    expected = NVRTC_BUILTIN_METADATA.get(str(path))
+    if expected is None or sha256 != expected["sha256"] or path.is_symlink():
+        return False
+    try:
+        with path.open("rb") as source:
+            digest = hashlib.sha256()
+            occurrences: set[int] = set()
+            position = 0
+            carry = b""
+            needle = b"strfmon"
+            while chunk := source.read(1024 * 1024):
+                digest.update(chunk)
+                block = carry + chunk
+                start = 0
+                while (found := block.find(needle, start)) >= 0:
+                    occurrences.add(position - len(carry) + found)
+                    start = found + 1
+                position += len(chunk)
+                carry = block[-(len(needle) - 1) :]
+            name_offset = int(expected["name_offset"])
+            if digest.hexdigest() != sha256 or occurrences != {name_offset + 10}:
+                return False
+
+            def read_at(offset: int, size: int) -> bytes:
+                source.seek(offset)
+                return source.read(size)
+
+            name_address = int(expected["name_address"])
+            descriptor_address = int(expected["descriptor_address"])
+            table_offset = int(expected["table_offset"])
+            if int(expected["descriptor_offset"]) != (
+                table_offset + NVRTC_BUILTIN_ROW_INDEX * 16
+            ):
+                return False
+            descriptor = name_address.to_bytes(8, "little") + (0x415501B3023B).to_bytes(
+                8, "little"
+            )
+            relocation = (
+                descriptor_address.to_bytes(8, "little")
+                + (8).to_bytes(8, "little")  # R_X86_64_RELATIVE, symbol index zero
+                + name_address.to_bytes(8, "little")
+            )
+            table = read_at(table_offset, NVRTC_BUILTIN_TABLE_BYTES)
+            return (
+                read_at(name_offset - 18, len(NVRTC_BUILTIN_CONTEXT))
+                == NVRTC_BUILTIN_CONTEXT
+                and read_at(int(expected["descriptor_offset"]), 16) == descriptor
+                and read_at(int(expected["relocation_offset"]), 24) == relocation
+                and len(table) == NVRTC_BUILTIN_TABLE_BYTES
+                and table[-16:] == b"\0" * 16
+                and hashlib.sha256(table).hexdigest() == expected["table_sha256"]
+            )
+    except (OSError, ValueError, OverflowError):
+        return False
 
 
 def _assert_required_disabled_writers(paths: set[str]) -> None:

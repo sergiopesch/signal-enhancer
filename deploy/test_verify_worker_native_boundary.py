@@ -14,6 +14,9 @@ from verify_worker_native_boundary import (
     DISABLED_PACKAGE_WRITERS,
     FORBIDDEN_IMPORTS,
     NativeBoundaryError,
+    NVRTC_BUILTIN_CONTEXT,
+    NVRTC_BUILTIN_ROW_INDEX,
+    NVRTC_BUILTIN_TABLE_BYTES,
     _assert_aligned_new_runtime,
     _assert_no_source_symbol_lookup,
     _assert_required_disabled_writers,
@@ -23,6 +26,7 @@ from verify_worker_native_boundary import (
     _is_symbol_provider,
     _is_disabled_package_writer,
     _is_verified_php_keyword_data,
+    _is_verified_nvrtc_builtin_data,
     _native_reference_violations,
     _verify_inventory_shape,
 )
@@ -41,7 +45,172 @@ def keyword_source(directory: str) -> Path:
     return source
 
 
+def builtin_metadata_fixture(
+    directory: str, name_offset: int = 128,
+) -> tuple[Path, bytearray, dict[str, str | int]]:
+    """Small synthetic data fixture; never represents CUDA/model execution."""
+    path = Path(directory, "libnvrtc.so.13")
+    contents = bytearray(
+        max(512 + NVRTC_BUILTIN_TABLE_BYTES, name_offset + len(NVRTC_BUILTIN_CONTEXT))
+    )
+    name_address, descriptor_address = 0x1000, 0x8000
+    descriptor_offset = 512 + NVRTC_BUILTIN_ROW_INDEX * 16
+    contents[:4] = b"\x7fELF"
+    contents[name_offset - 18 : name_offset - 18 + len(NVRTC_BUILTIN_CONTEXT)] = (
+        NVRTC_BUILTIN_CONTEXT
+    )
+    contents[descriptor_offset : descriptor_offset + 16] = name_address.to_bytes(
+        8, "little"
+    ) + (0x415501B3023B).to_bytes(8, "little")
+    contents[256:280] = (
+        descriptor_address.to_bytes(8, "little")
+        + (8).to_bytes(8, "little")
+        + name_address.to_bytes(8, "little")
+    )
+    metadata = {
+        "sha256": hashlib.sha256(contents).hexdigest(),
+        "name_offset": name_offset,
+        "name_address": name_address,
+        "descriptor_offset": descriptor_offset,
+        "descriptor_address": descriptor_address,
+        "relocation_offset": 256,
+        "table_offset": 512,
+        "table_sha256": hashlib.sha256(contents[512 : 512 + NVRTC_BUILTIN_TABLE_BYTES]).hexdigest(),
+    }
+    path.write_bytes(contents)
+    return path, contents, metadata
+
+
 class NativeBoundaryFormatTests(unittest.TestCase):
+    def test_nvrtc_occurrences_crossing_scan_chunks_are_counted_exactly(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            # The seven-byte symbol crosses the 1MiB scan boundary.
+            path, original, metadata = builtin_metadata_fixture(directory, 1024 * 1024 - 13)
+            with patch("verify_worker_native_boundary.NVRTC_BUILTIN_METADATA", {str(path): metadata}):
+                self.assertTrue(_is_verified_nvrtc_builtin_data(path, str(metadata["sha256"])))
+            original[16:23] = b"strfmon"
+            path.write_bytes(original)
+            changed = {**metadata, "sha256": hashlib.sha256(original).hexdigest()}
+            with patch("verify_worker_native_boundary.NVRTC_BUILTIN_METADATA", {str(path): changed}):
+                self.assertFalse(_is_verified_nvrtc_builtin_data(path, str(changed["sha256"])))
+
+    def test_nvrtc_metadata_requires_exact_path_hash_and_single_name_record(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path, original, metadata = builtin_metadata_fixture(directory)
+            with patch(
+                "verify_worker_native_boundary.NVRTC_BUILTIN_METADATA",
+                {str(path): metadata},
+            ):
+                digest = str(metadata["sha256"])
+                self.assertTrue(_is_verified_nvrtc_builtin_data(path, digest))
+                self.assertFalse(_is_verified_nvrtc_builtin_data(path, "0" * 64))
+                other = path.with_name("copied.so")
+                other.write_bytes(original)
+                self.assertFalse(_is_verified_nvrtc_builtin_data(other, digest))
+                alias = path.with_name("alias.so")
+                path.rename(alias)
+                path.symlink_to(alias)
+                self.assertFalse(_is_verified_nvrtc_builtin_data(path, digest))
+                path.unlink()
+                path.write_bytes(original + b"\0strfmon\0")
+                self.assertFalse(_is_verified_nvrtc_builtin_data(path, digest))
+                # Even a hypothetical new hash pin cannot authorize a second name.
+                changed = {
+                    **metadata,
+                    "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+                }
+                with patch(
+                    "verify_worker_native_boundary.NVRTC_BUILTIN_METADATA",
+                    {str(path): changed},
+                ):
+                    self.assertFalse(
+                        _is_verified_nvrtc_builtin_data(path, str(changed["sha256"]))
+                    )
+
+    def test_nvrtc_metadata_rejects_changed_context_record_table_and_relocation(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path, original, metadata = builtin_metadata_fixture(directory)
+            replacements = (
+                (128, ord("X")),  # __builtin_ prefix
+                (145, ord("X")),  # NUL suffix, not a complete builtin name
+                (111, ord("X")),  # adjacent builtin name
+                (int(metadata["descriptor_offset"]) + 8, 0),  # packed type/ID
+                (256, 1),  # relocation target
+                (264, 7),  # relocation type/symbol index
+                (272, 1),  # relocation addend/name address
+                (512, 1),  # another table record
+                (len(original) - 1, 1),  # table terminator
+            )
+            for offset, value in replacements:
+                contents = original.copy()
+                contents[offset] = value
+                path.write_bytes(contents)
+                changed = {**metadata, "sha256": hashlib.sha256(contents).hexdigest()}
+                with (
+                    self.subTest(offset=offset),
+                    patch(
+                        "verify_worker_native_boundary.NVRTC_BUILTIN_METADATA",
+                        {str(path): changed},
+                    ),
+                ):
+                    self.assertFalse(
+                        _is_verified_nvrtc_builtin_data(path, str(changed["sha256"]))
+                    )
+            path.write_bytes(original)
+            for key in (
+                "name_offset",
+                "descriptor_offset",
+                "table_offset",
+                "relocation_offset",
+            ):
+                changed = {**metadata, key: int(metadata[key]) + 1}
+                with (
+                    self.subTest(key=key),
+                    patch(
+                        "verify_worker_native_boundary.NVRTC_BUILTIN_METADATA",
+                        {str(path): changed},
+                    ),
+                ):
+                    self.assertFalse(
+                        _is_verified_nvrtc_builtin_data(path, str(metadata["sha256"]))
+                    )
+
+    def test_nvrtc_metadata_never_permits_actual_imports_or_other_symbol_strings(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path, _, metadata = builtin_metadata_fixture(directory)
+            fields = {
+                "uid": 0,
+                "gid": 0,
+                "mode": 0o644,
+                "sha256": str(metadata["sha256"]),
+            }
+            with patch(
+                "verify_worker_native_boundary.NVRTC_BUILTIN_METADATA",
+                {str(path): metadata},
+            ):
+                references, lookups, _ = _native_reference_violations(
+                    path, set(), {"strfmon"}, **fields
+                )
+                self.assertEqual((set(), set()), (references, lookups))
+                for symbol in FORBIDDEN_IMPORTS:
+                    references, lookups, _ = _native_reference_violations(
+                        path, {symbol}, {"strfmon", symbol}, **fields
+                    )
+                    with self.subTest(symbol=symbol):
+                        self.assertIn(symbol, references)
+                        self.assertIn("strfmon", lookups)
+                references, lookups, _ = _native_reference_violations(
+                    path, set(), {"strfmon", "strfmon_l", "gzwrite"}, **fields
+                )
+                self.assertEqual(set(), references)
+                self.assertEqual({"strfmon_l", "gzwrite"}, lookups)
+
     def test_only_exact_root_owned_inaccessible_package_bytes_qualify(self) -> None:
         for filename, digest in DISABLED_PACKAGE_WRITERS.items():
             fields = {"uid": 0, "gid": 0, "mode": 0, "sha256": digest}
