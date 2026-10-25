@@ -97,6 +97,17 @@ def verify(
     if target not in allowed:
         raise VexScanError("version-mismatch target is absent from the reviewed VEX")
 
+    if any(
+        _is_high_or_critical(match) for match in _matches(baseline, "ignoredMatches")
+    ):
+        raise VexScanError("the baseline implicitly suppresses a high/critical finding")
+    for report in (vexed, mismatch):
+        for match in _matches(report, "ignoredMatches"):
+            if _is_high_or_critical(match) and (
+                not _is_vex_ignored(match) or _pair(match) not in allowed
+            ):
+                raise VexScanError("a high/critical suppression lacks an exact reviewed VEX rule")
+
     baseline_high = [
         match for match in _matches(baseline, "matches") if _is_high_or_critical(match)
     ]
@@ -118,12 +129,23 @@ def verify(
     if actual_ignored != expected_ignored:
         raise VexScanError("VEX did not suppress exactly the reviewed CVE/package pairs")
 
-    mismatch_active = Counter(_pair(match) for match in _matches(mismatch, "matches"))
-    mismatch_ignored = {
-        _pair(match) for match in _matches(mismatch, "ignoredMatches") if _is_vex_ignored(match)
-    }
-    if mismatch_active[target] < 1 or target in mismatch_ignored:
-        raise VexScanError("a changed package version did not fail closed")
+    if expected_ignored[target] < 1:
+        raise VexScanError("the version-mismatch target has no baseline high/critical evidence")
+    mismatch_active = Counter(
+        _pair(match) for match in _matches(mismatch, "matches") if _is_high_or_critical(match)
+    )
+    mismatch_ignored = Counter(
+        _pair(match)
+        for match in _matches(mismatch, "ignoredMatches")
+        if _is_high_or_critical(match)
+    )
+    expected_remaining = expected_ignored.copy()
+    del expected_remaining[target]
+    if (
+        mismatch_active != Counter({target: expected_ignored[target]})
+        or mismatch_ignored != expected_remaining
+    ):
+        raise VexScanError("the version-mismatch report changed more than the exact target")
     print(
         "VEX integration verified:",
         f"{sum(expected_ignored.values())} exact high/critical matches suppressed;",

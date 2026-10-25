@@ -248,6 +248,8 @@ jobs:
           path: |
             published-worker-image.openvex.json
             published-worker-image.grype.json
+            published-worker-image.grype.baseline.json
+            published-worker-image.grype.mismatch.json
           if-no-files-found: error
           retention-days: 90
       - name: Publish immutable deployment coordinate

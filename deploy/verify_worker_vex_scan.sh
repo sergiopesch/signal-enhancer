@@ -65,6 +65,7 @@ with open(output_path, "w", encoding="utf-8") as output:
 PY
 
 scan "sbom:$sbom_path" --only-fixed=false --output json > "$baseline_path"
+cp -- "$baseline_path" "${report_path%.json}.baseline.json"
 scan "sbom:$sbom_path" \
   --vex "$vex_path" \
   --only-fixed=false \
@@ -74,6 +75,7 @@ scan "sbom:$sbom_path" \
   --vex "$mismatch_vex_container_path" \
   --only-fixed=false \
   --output json > "$mismatch_report_path"
+cp -- "$mismatch_report_path" "${report_path%.json}.mismatch.json"
 
 python3 deploy/verify_worker_vex_results.py \
   --baseline "$baseline_path" \

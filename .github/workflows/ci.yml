@@ -260,5 +260,7 @@ jobs:
           path: |
             worker-image.openvex.json
             worker-image.grype.json
+            worker-image.grype.baseline.json
+            worker-image.grype.mismatch.json
           if-no-files-found: error
           retention-days: 90
