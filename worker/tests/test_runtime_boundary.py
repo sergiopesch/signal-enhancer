@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import importlib.util
+import subprocess
+import sys
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -16,6 +19,35 @@ IDENTITY = (10_001, 10_001, 10_001)
 
 def test_accepts_only_unprivileged_kernel_evidence() -> None:
     RUNTIME.validate_privileges(IDENTITY, IDENTITY, STATUS)
+
+
+def test_closes_real_inherited_descriptors_and_preserves_standard_streams() -> None:
+    code = """
+import errno, os, runpy, sys
+runtime = runpy.run_path(sys.argv[1])
+descriptor = int(sys.argv[2])
+assert os.read(descriptor, 1) == b'x'
+runtime['close_inherited_descriptors']()
+for stream in range(3):
+    os.fstat(stream)
+try:
+    os.fstat(descriptor)
+except OSError as error:
+    assert error.errno == errno.EBADF
+else:
+    raise AssertionError('inherited authority remained open')
+"""
+    with tempfile.TemporaryFile() as inherited:
+        inherited.write(b"x")
+        inherited.flush()
+        inherited.seek(0)
+        subprocess.run(  # noqa: S603 - controlled Python fixture and task-owned descriptor
+            [sys.executable, "-c", code, str(SCRIPT), str(inherited.fileno())],
+            pass_fds=(inherited.fileno(),),
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            check=True,
+        )
 
 
 @pytest.mark.parametrize("field", ["CapInh", "CapPrm", "CapEff", "CapAmb"])

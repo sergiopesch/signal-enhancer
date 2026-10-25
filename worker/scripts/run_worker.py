@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ctypes
+import errno
 import os
 from pathlib import Path
 
@@ -53,9 +54,26 @@ def prevent_new_privileges() -> None:
         raise RuntimeError("the kernel could not prevent acquiring new privileges")
 
 
+def close_inherited_descriptors() -> None:
+    """Do not carry a parent's open file authority into the worker service."""
+    with os.scandir("/proc/self/fd") as entries:
+        descriptors = [
+            int(entry.name) for entry in entries if entry.name.isdigit() and int(entry.name) > 2
+        ]
+    for descriptor in descriptors:
+        try:
+            os.close(descriptor)
+        except OSError as error:
+            # The directory iterator's descriptor has already closed. Any other
+            # failure is fatal rather than accepting uncertain inherited state.
+            if error.errno != errno.EBADF:
+                raise
+
+
 def main() -> None:
     prevent_new_privileges()
     validate_privileges(os.getresuid(), os.getresgid(), Path("/proc/self/status").read_text())
+    close_inherited_descriptors()
     os.execv(WORKER_COMMAND[0], WORKER_COMMAND)  # noqa: S606 - fixed absolute process/arguments
 
 

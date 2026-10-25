@@ -4,6 +4,10 @@
 from __future__ import annotations
 
 import argparse
+import ast
+import importlib.util
+import marshal
+import sys
 import hashlib
 import json
 import os
@@ -33,6 +37,8 @@ FORBIDDEN_IMPORTS = {
 GZIP_WRITE_SYMBOLS = {"gzwrite", "gzfwrite", "gzprintf", "gzvprintf", "gzputc", "gzputs", "gzflush"}
 MONETARY_SYMBOLS = {"strfmon", "strfmon_l", "__strfmon_l", "__vstrfmon_l"}
 ALIGNED_NEW_LIBRARY_SHA256 = "972bb2a18b71140dab0240f8a1f68ab3fb1d56bcd4c4f824a91b70888faf5a00"
+# Pygments2.20.0 official blob1f93215d78a5617fcc98b0d52b5b9ee8720d52cf.
+PHP_KEYWORDS_SOURCE_SHA256 = "f60f962d3dea6d21a8950241ff83d2e855bfafb1d55c15af239396c4ab5bc289"
 ALLOCATING_SCANF_BYTES = re.compile(rb"%(?:[0-9]+\$)?['I]*([0-9]+)m(?:lc|[cC])")
 SYMBOL_PROVIDERS = {"libc.so.6", "libresolv.so.2"}
 READELF = "/usr/bin/readelf"
@@ -120,8 +126,78 @@ def _image_elf_files() -> list[Path]:
     return sorted(files)
 
 
+def _is_verified_php_keyword_data(path: Path, contents: bytes) -> bool:
+    """Distinguish one immutable PHP lexer table from native symbol lookups.
+
+    The exact upstream source imports MODULES only as syntax-highlighting names.
+    Cached bytecode must be the compiler output of that same verified source;
+    neither the source module nor its cached code is executed by this audit.
+    """
+    optimize = 0
+    if path.name == "_php_builtins.py":
+        source = path
+    else:
+        cache_tag = sys.implementation.cache_tag
+        if not cache_tag or path.parent.name != "__pycache__":
+            return False
+        cached = re.fullmatch(
+            r"_php_builtins\." + re.escape(cache_tag) + r"(?:\.opt-([12]))?\.pyc",
+            path.name,
+        )
+        if cached is None:
+            return False
+        optimize = int(cached.group(1) or "0")
+        source = path.parent.parent / "_php_builtins.py"
+    if source.parent.name != "lexers" or source.parent.parent.name != "pygments":
+        return False
+    if source.is_symlink():
+        return False
+    try:
+        source_bytes = source.read_bytes()
+        if hashlib.sha256(source_bytes).hexdigest() != PHP_KEYWORDS_SOURCE_SHA256:
+            return False
+        tree = ast.parse(source_bytes)
+        if len(tree.body) != 3:
+            return False
+        documentation, assignment, generator = tree.body
+        if not (
+            isinstance(documentation, ast.Expr)
+            and isinstance(documentation.value, ast.Constant)
+            and isinstance(documentation.value.value, str)
+            and isinstance(assignment, ast.Assign)
+            and len(assignment.targets) == 1
+            and isinstance(assignment.targets[0], ast.Name)
+            and assignment.targets[0].id == "MODULES"
+            and isinstance(generator, ast.If)
+            and not generator.orelse
+            and ast.dump(generator.test)
+            == ast.dump(ast.parse("__name__ == '__main__'", mode="eval").body)
+        ):
+            return False
+        modules = ast.literal_eval(assignment.value)
+        if not isinstance(modules, dict) or not all(
+            isinstance(name, str)
+            and isinstance(names, tuple)
+            and all(isinstance(function, str) for function in names)
+            for name, names in modules.items()
+        ):
+            return False
+        outside_table = ast.unparse(ast.Module(body=[documentation, generator], type_ignores=[]))
+        if any(symbol in outside_table for symbol in FORBIDDEN_IMPORTS):
+            return False
+        if path == source:
+            return contents == source_bytes
+        if len(contents) < 16 or contents[:4] != importlib.util.MAGIC_NUMBER:
+            return False
+        expected = compile(source_bytes, str(source), "exec", dont_inherit=True, optimize=optimize)
+        return contents[16:] == marshal.dumps(expected)
+    except (OSError, ValueError, SyntaxError, TypeError, EOFError):
+        return False
+
+
 def _assert_no_source_symbol_lookup() -> None:
-    needles = tuple(symbol.encode() for symbol in FORBIDDEN_IMPORTS)
+    violations: list[str] = []
+    verified_keyword_files = 0
     for current, directories, names in os.walk("/", topdown=True, followlinks=False):
         directories[:] = [
             name
@@ -139,8 +215,20 @@ def _assert_no_source_symbol_lookup() -> None:
                 contents = path.read_bytes()
             except OSError:
                 continue
-            if any(needle in contents for needle in needles):
-                raise NativeBoundaryError("a runtime source contains a forbidden dynamic symbol")
+            symbols = {symbol for symbol in FORBIDDEN_IMPORTS if symbol.encode() in contents}
+            if symbols:
+                if _is_verified_php_keyword_data(path, contents):
+                    verified_keyword_files += 1
+                else:
+                    violations.append(f"{path}: {','.join(sorted(symbols))}")
+    if violations:
+        raise NativeBoundaryError(
+            "runtime sources contain forbidden dynamic symbols: " + "; ".join(violations)
+        )
+    if verified_keyword_files:
+        print(
+            f"verified immutable PHP syntax keyword data in {verified_keyword_files} source/cache files"
+        )
 
 
 def _sha256(path: Path) -> str:

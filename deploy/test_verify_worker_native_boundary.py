@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import hashlib
+import importlib.util
+import marshal
+import py_compile
 import unittest
 import tempfile
 from pathlib import Path
@@ -10,14 +14,98 @@ from verify_worker_native_boundary import (
     FORBIDDEN_IMPORTS,
     NativeBoundaryError,
     _assert_aligned_new_runtime,
+    _assert_no_source_symbol_lookup,
     _assert_regular_file_privileges,
     _digest_and_scan,
     _format_widths,
     _is_symbol_provider,
+    _is_verified_php_keyword_data,
 )
+
+KEYWORDS = b'''"""PHP lexer keyword fixture."""
+MODULES = {"Zlib": ("gzwrite", "gzputs")}
+if __name__ == "__main__":
+    pass
+'''
+
+
+def keyword_source(directory: str) -> Path:
+    source = Path(directory, "pygments/lexers/_php_builtins.py")
+    source.parent.mkdir(parents=True)
+    source.write_bytes(KEYWORDS)
+    return source
 
 
 class NativeBoundaryFormatTests(unittest.TestCase):
+    def test_keyword_data_requires_exact_provenance_and_namespace(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            source = keyword_source(directory)
+            self.assertFalse(_is_verified_php_keyword_data(source, KEYWORDS))
+            with patch(
+                "verify_worker_native_boundary.PHP_KEYWORDS_SOURCE_SHA256",
+                hashlib.sha256(KEYWORDS).hexdigest(),
+            ):
+                self.assertTrue(_is_verified_php_keyword_data(source, KEYWORDS))
+                renamed = source.with_name("native_lookup.py")
+                renamed.write_bytes(KEYWORDS)
+                self.assertFalse(_is_verified_php_keyword_data(renamed, KEYWORDS))
+                source.write_bytes(KEYWORDS + b"# altered source\n")
+                self.assertFalse(_is_verified_php_keyword_data(source, source.read_bytes()))
+
+    def test_keyword_cache_must_be_exact_compiler_output_not_arbitrary_bytecode(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            source = keyword_source(directory)
+            with patch(
+                "verify_worker_native_boundary.PHP_KEYWORDS_SOURCE_SHA256",
+                hashlib.sha256(KEYWORDS).hexdigest(),
+            ):
+                for optimize in (0, 1, 2):
+                    cached = Path(py_compile.compile(str(source), doraise=True, optimize=optimize))
+                    original = cached.read_bytes()
+                    with self.subTest(optimize=optimize):
+                        self.assertTrue(_is_verified_php_keyword_data(cached, original))
+                        self.assertFalse(
+                            _is_verified_php_keyword_data(cached, original + b"unreviewed trailer")
+                        )
+                        malicious = compile(
+                            "raise RuntimeError('gzwrite')", str(source), "exec", dont_inherit=True
+                        )
+                        tampered = (
+                            importlib.util.MAGIC_NUMBER + b"\0" * 12 + marshal.dumps(malicious)
+                        )
+                        self.assertFalse(_is_verified_php_keyword_data(cached, tampered))
+                source.unlink()
+                self.assertFalse(_is_verified_php_keyword_data(cached, original))
+
+    def test_keyword_table_must_be_literal_and_native_names_cannot_escape_the_table(self) -> None:
+        replacements = (
+            KEYWORDS.replace(b'("gzwrite", "gzputs")', b'("gzwrite", lookup())'),
+            KEYWORDS + b"getattr(libc, 'gzwrite')\n",
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            source = keyword_source(directory)
+            for contents in replacements:
+                source.write_bytes(contents)
+                with patch(
+                    "verify_worker_native_boundary.PHP_KEYWORDS_SOURCE_SHA256",
+                    hashlib.sha256(contents).hexdigest(),
+                ):
+                    self.assertFalse(_is_verified_php_keyword_data(source, contents))
+
+    def test_source_audit_still_rejects_and_identifies_an_actual_lookup(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            source = keyword_source(directory)
+            lookup = source.with_name("actual_lookup.py")
+            lookup.write_text("getattr(libc, 'strfmon')\n")
+            walked = [(str(source.parent), [], [source.name, lookup.name])]
+            with patch(
+                "verify_worker_native_boundary.PHP_KEYWORDS_SOURCE_SHA256",
+                hashlib.sha256(KEYWORDS).hexdigest(),
+            ):
+                with patch("verify_worker_native_boundary.os.walk", return_value=iter(walked)):
+                    with self.assertRaisesRegex(NativeBoundaryError, "actual_lookup.py: strfmon"):
+                        _assert_no_source_symbol_lookup()
+
     def test_rejects_set_id_files_and_executable_capabilities(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory, "fixture")
