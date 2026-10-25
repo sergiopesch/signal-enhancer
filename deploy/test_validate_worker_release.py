@@ -70,6 +70,8 @@ class WorkerReleaseValidationTests(unittest.TestCase):
                 "Architecture": "amd64",
                 "Config": {
                     "User": "10001:10001",
+                    "Cmd": ["python", "/usr/local/libexec/run_worker.py"],
+                    "Entrypoint": None,
                     "Labels": {
                         "org.opencontainers.image.revision": build_revision,
                         "io.signal-enhancer.resemble-installed": "1",
@@ -105,6 +107,16 @@ class WorkerReleaseValidationTests(unittest.TestCase):
 
     def test_checked_in_policy_is_valid(self) -> None:
         validate_policy(self.policy)
+
+    def test_worker_image_cannot_bypass_the_runtime_privilege_guard(self) -> None:
+        for replacement in (
+            {"Cmd": ["uvicorn", "signal_enhancer_worker.app:app"]},
+            {"Entrypoint": ["/bin/sh", "-c"]},
+        ):
+            inspect = self.image_inspect()
+            inspect[0]["Config"].update(replacement)
+            with self.subTest(replacement=replacement), self.assertRaises(ReleaseValidationError):
+                validate_inspect(inspect, self.policy, "a" * 40)
 
     def test_worker_image_requires_the_runtime_cache_environment_contract(self) -> None:
         inspect = self.image_inspect()

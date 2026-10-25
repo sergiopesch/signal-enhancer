@@ -83,6 +83,26 @@ RUN apt-get update \
 
 COPY --from=builder /app/.venv /app/.venv
 COPY --from=builder --chmod=0644 /usr/local/libexec/verify_resemble_core.py /usr/local/libexec/verify_resemble_core.py
+COPY --chmod=0644 scripts/run_worker.py /usr/local/libexec/run_worker.py
+
+# The service needs no set-ID helpers or executable file capabilities.
+RUN python - <<'PY_RUNTIME'
+import os
+import stat
+from pathlib import Path
+
+for current, directories, names in os.walk("/", topdown=True, followlinks=False):
+    directories[:] = [name for name in directories if str(Path(current, name)) not in {"/dev", "/proc", "/run", "/sys"}]
+    for name in names:
+        path = Path(current, name)
+        metadata = path.lstat()
+        if not stat.S_ISREG(metadata.st_mode):
+            continue
+        if metadata.st_mode & (stat.S_ISUID | stat.S_ISGID):
+            path.chmod(stat.S_IMODE(metadata.st_mode) & ~(stat.S_ISUID | stat.S_ISGID))
+        if "security.capability" in os.listxattr(path, follow_symlinks=False):
+            os.removexattr(path, "security.capability", follow_symlinks=False)
+PY_RUNTIME
 
 USER 10001:10001
 EXPOSE 7860
@@ -90,4 +110,4 @@ EXPOSE 7860
 HEALTHCHECK --interval=20s --timeout=4s --start-period=90s --retries=3 \
   CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:7860/health', timeout=3)"
 
-CMD ["uvicorn", "signal_enhancer_worker.app:app", "--host", "0.0.0.0", "--port", "7860", "--no-access-log"]
+CMD ["python", "/usr/local/libexec/run_worker.py"]

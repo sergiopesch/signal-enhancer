@@ -14,7 +14,25 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
-FORBIDDEN_IMPORTS = {"fp_nquery", "ns_printrr", "ns_printrrf"}
+FORBIDDEN_IMPORTS = {
+    "fp_nquery",
+    "ns_printrr",
+    "ns_printrrf",
+    "strfmon",
+    "strfmon_l",
+    "__strfmon_l",
+    "__vstrfmon_l",
+    "gzwrite",
+    "gzfwrite",
+    "gzprintf",
+    "gzvprintf",
+    "gzputc",
+    "gzputs",
+    "gzflush",
+}
+GZIP_WRITE_SYMBOLS = {"gzwrite", "gzfwrite", "gzprintf", "gzvprintf", "gzputc", "gzputs", "gzflush"}
+MONETARY_SYMBOLS = {"strfmon", "strfmon_l", "__strfmon_l", "__vstrfmon_l"}
+ALIGNED_NEW_LIBRARY_SHA256 = "972bb2a18b71140dab0240f8a1f68ab3fb1d56bcd4c4f824a91b70888faf5a00"
 ALLOCATING_SCANF_BYTES = re.compile(rb"%(?:[0-9]+\$)?['I]*([0-9]+)m(?:lc|[cC])")
 SYMBOL_PROVIDERS = {"libc.so.6", "libresolv.so.2"}
 READELF = "/usr/bin/readelf"
@@ -24,6 +42,47 @@ EXCLUDED_ROOTS = {"/audit", "/dev", "/proc", "/run", "/sys"}
 
 class NativeBoundaryError(RuntimeError):
     """The final image does not satisfy a reviewed native-code boundary."""
+
+
+def _is_symbol_provider(path: Path, symbol: str) -> bool:
+    if symbol in GZIP_WRITE_SYMBOLS:
+        return (
+            re.fullmatch(r"libz(?:\.so(?:\.[0-9]+)*|\.[a-f0-9]+\.so\.[0-9]+)", path.name)
+            is not None
+        )
+    if symbol in MONETARY_SYMBOLS:
+        return path.name == "libc.so.6"
+    return path.name in SYMBOL_PROVIDERS
+
+
+def _assert_regular_file_privileges(path: Path) -> None:
+    metadata = path.lstat()
+    if not stat.S_ISREG(metadata.st_mode):
+        return
+    if metadata.st_mode & (stat.S_ISUID | stat.S_ISGID):
+        raise NativeBoundaryError("a final-image regular file retains set-ID privileges")
+    if "security.capability" in os.listxattr(path, follow_symlinks=False):
+        raise NativeBoundaryError("a final-image regular file retains executable capabilities")
+    if path.name == "erase_fn_imps.hpp" and "pb_ds" in path.parts and "binary_heap_" in path.parts:
+        raise NativeBoundaryError("an unreviewed PBDS binary-heap implementation is shipped")
+
+
+def _assert_final_file_privileges() -> None:
+    for current, directories, names in os.walk("/", topdown=True, followlinks=False):
+        directories[:] = [
+            name
+            for name in directories
+            if str(Path(current, name)) not in EXCLUDED_ROOTS
+            and not Path(current, name).is_symlink()
+        ]
+        for name in names:
+            _assert_regular_file_privileges(Path(current, name))
+
+
+def _assert_aligned_new_runtime(inventory: list[dict[str, Any]]) -> None:
+    libraries = [item for item in inventory if Path(item["path"]).name.startswith("libstdc++")]
+    if not libraries or any(item["sha256"] != ALIGNED_NEW_LIBRARY_SHA256 for item in libraries):
+        raise NativeBoundaryError("the reviewed posix_memalign C++ runtime is missing or changed")
 
 
 def _assert_platform_and_locale() -> None:
@@ -95,13 +154,19 @@ def _sha256(path: Path) -> str:
 def write_inventory(path: Path) -> None:
     _assert_platform_and_locale()
     _assert_no_source_symbol_lookup()
+    _assert_final_file_privileges()
     files = _image_elf_files()
     if not files:
         raise NativeBoundaryError("no final-image ELF files were discovered")
     inventory = {
-        "schemaVersion": 1,
+        "schemaVersion": 2,
         "files": [
-            {"path": str(file), "size": file.stat().st_size, "sha256": _sha256(file)}
+            {
+                "path": str(file),
+                "size": file.stat().st_size,
+                "mode": stat.S_IMODE(file.stat().st_mode),
+                "sha256": _sha256(file),
+            }
             for file in files
         ],
     }
@@ -117,7 +182,7 @@ def _load_inventory(path: Path) -> list[dict[str, Any]]:
     files = document.get("files") if isinstance(document, dict) else None
     if (
         not isinstance(document, dict)
-        or document.get("schemaVersion") != 1
+        or document.get("schemaVersion") != 2
         or not isinstance(files, list)
         or not files
     ):
@@ -127,6 +192,9 @@ def _load_inventory(path: Path) -> list[dict[str, Any]]:
             not isinstance(item, dict)
             or not isinstance(item.get("path"), str)
             or not item["path"].startswith("/")
+            or not isinstance(item.get("mode"), int)
+            or item["mode"] < 0
+            or item["mode"] > 0o7777
             or not isinstance(item.get("size"), int)
             or not isinstance(item.get("sha256"), str)
             or not re.fullmatch(r"[0-9a-f]{64}", item["sha256"])
@@ -242,6 +310,8 @@ def verify_inventory(path: Path) -> None:
     if not Path(READELF).is_file():
         raise NativeBoundaryError("readelf is required for the native-boundary audit")
     inventory = _load_inventory(path)
+    _assert_final_file_privileges()
+    _assert_aligned_new_runtime(inventory)
     if any(
         "libtasn" in Path(item["path"]).name.lower()
         or "libgnutls" in Path(item["path"]).name.lower()
@@ -258,7 +328,11 @@ def verify_inventory(path: Path) -> None:
             metadata = elf.stat()
         except OSError as error:
             raise NativeBoundaryError("an inventoried ELF disappeared") from error
-        if metadata.st_size != item["size"] or not _is_elf(elf):
+        if (
+            metadata.st_size != item["size"]
+            or stat.S_IMODE(metadata.st_mode) != item["mode"]
+            or not _is_elf(elf)
+        ):
             raise NativeBoundaryError("an inventoried ELF changed shape")
         actual_sha256, widths, symbol_strings = _digest_and_scan(elf)
         if actual_sha256 != item["sha256"]:
@@ -266,17 +340,20 @@ def verify_inventory(path: Path) -> None:
         imported = _undefined_symbols(elf) & FORBIDDEN_IMPORTS
         if imported:
             forbidden_references.append(f"{elf}: {','.join(sorted(imported))}")
-        if elf.name not in SYMBOL_PROVIDERS and symbol_strings:
-            forbidden_dynamic_lookups.append(f"{elf}: {','.join(sorted(symbol_strings))}")
+        lookup_strings = {
+            symbol for symbol in symbol_strings if not _is_symbol_provider(elf, symbol)
+        }
+        if lookup_strings:
+            forbidden_dynamic_lookups.append(f"{elf}: {','.join(sorted(lookup_strings))}")
         if elf.name != "libc.so.6" and widths:
             forbidden_formats.append(f"{elf}: {','.join(map(str, sorted(widths)))}")
     if forbidden_references:
         raise NativeBoundaryError(
-            "forbidden resolver imports found: " + "; ".join(forbidden_references)
+            "forbidden native imports found: " + "; ".join(forbidden_references)
         )
     if forbidden_dynamic_lookups:
         raise NativeBoundaryError(
-            "forbidden resolver symbol strings found outside providers: "
+            "forbidden native symbol strings found outside providers: "
             + "; ".join(forbidden_dynamic_lookups)
         )
     if forbidden_formats:

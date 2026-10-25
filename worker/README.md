@@ -117,6 +117,14 @@ uv pip check --python .venv/bin/python
 
 ## Container and Hugging Face
 
+The image starts through a fixed launcher that requires UID/GID 10001, including saved
+identities, zero effective/permitted/inheritable/ambient capabilities, and the Linux
+`no_new_privs` flag before replacing itself with the existing Uvicorn command. The
+final image removes set-ID modes and executable file capabilities. Image validation
+rejects a command or entrypoint that bypasses this launcher; provider command overrides
+also remain prohibited. The audio API and fixed Uvicorn arguments stay the same. Actual CUDA inference
+still requires the release GPU checks.
+
 The image is fixed to `linux/amd64`, uses a digest-pinned Python 3.12.15 security-release base,
 installs from the committed `uv.lock`, runs as UID/GID 10001, disables Uvicorn access logs, and
 uses port 7860 plus `/health` for readiness. The unprivileged account has a private `0700` home

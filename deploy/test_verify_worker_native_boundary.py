@@ -1,11 +1,78 @@
 from __future__ import annotations
 
 import unittest
+import tempfile
+from pathlib import Path
+from unittest.mock import patch
 
-from verify_worker_native_boundary import _format_widths
+from verify_worker_native_boundary import (
+    ALIGNED_NEW_LIBRARY_SHA256,
+    FORBIDDEN_IMPORTS,
+    NativeBoundaryError,
+    _assert_aligned_new_runtime,
+    _assert_regular_file_privileges,
+    _digest_and_scan,
+    _format_widths,
+    _is_symbol_provider,
+)
 
 
 class NativeBoundaryFormatTests(unittest.TestCase):
+    def test_rejects_set_id_files_and_executable_capabilities(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory, "fixture")
+            path.write_bytes(b"no executable code")
+            path.chmod(0o644)
+            _assert_regular_file_privileges(path)
+            for mode in (0o4644, 0o2644):
+                path.chmod(mode)
+                with self.subTest(mode=mode), self.assertRaises(NativeBoundaryError):
+                    _assert_regular_file_privileges(path)
+            path.chmod(0o644)
+            with patch(
+                "verify_worker_native_boundary.os.listxattr", return_value=["security.capability"]
+            ):
+                with self.assertRaises(NativeBoundaryError):
+                    _assert_regular_file_privileges(path)
+
+    def test_rejects_a_shipped_pbds_development_implementation(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory, "ext/pb_ds/detail/binary_heap_/erase_fn_imps.hpp")
+            path.parent.mkdir(parents=True)
+            path.write_text("template implementation")
+            with self.assertRaises(NativeBoundaryError):
+                _assert_regular_file_privileges(path)
+
+    def test_requires_the_exact_reviewed_posix_memalign_runtime(self) -> None:
+        library = {
+            "path": "/usr/lib/x86_64-linux-gnu/libstdc++.so.6.0.33",
+            "sha256": ALIGNED_NEW_LIBRARY_SHA256,
+        }
+        _assert_aligned_new_runtime([library])
+        for inventory in (
+            [],
+            [{**library, "sha256": "0" * 64}],
+            [library, {**library, "path": "/unexpected/libstdc++.so.6", "sha256": "0" * 64}],
+        ):
+            with self.subTest(inventory=inventory), self.assertRaises(NativeBoundaryError):
+                _assert_aligned_new_runtime(inventory)
+
+    def test_symbol_provider_exceptions_are_limited_to_the_actual_component(self) -> None:
+        self.assertTrue(_is_symbol_provider(Path("libc.so.6"), "strfmon"))
+        self.assertFalse(_is_symbol_provider(Path("libresolv.so.2"), "strfmon"))
+        self.assertTrue(_is_symbol_provider(Path("libz.so.1.3.1"), "gzprintf"))
+        self.assertTrue(_is_symbol_provider(Path("libz.b9a71669.so.1"), "gzprintf"))
+        self.assertFalse(_is_symbol_provider(Path("libc.so.6"), "gzprintf"))
+        self.assertFalse(_is_symbol_provider(Path("libz-malicious.so"), "gzprintf"))
+
+    def test_scans_each_reviewed_native_symbol_in_binary_bytes(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory, "fixture")
+            for symbol in FORBIDDEN_IMPORTS:
+                path.write_bytes(b"prefix\0" + symbol.encode() + b"\0suffix")
+                with self.subTest(symbol=symbol):
+                    self.assertIn(symbol, _digest_and_scan(path)[2])
+
     def test_detects_all_reviewed_allocating_character_formats(self) -> None:
         formats = (
             ("%1025mc", 1025),

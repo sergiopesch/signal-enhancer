@@ -69,6 +69,20 @@ def test_malformed_riff_is_rejected(mutate) -> None:
         decode(malformed)
 
 
+@pytest.mark.parametrize(("byte_order", "machine"), [("<", 0), (">", 1000)])
+def test_matlab_v4_input_is_rejected_before_audio_decoding(byte_order: str, machine: int) -> None:
+    # A complete 2x2 MATLAB v4 matrix, rather than a short/truncated-header case.
+    # MAT4 never reaches either the Debian or SoundFile-bundled libsndfile parser.
+    matrix = (
+        struct.pack(byte_order + "5i", machine, 2, 2, 0, 2)
+        + b"x\0"
+        + struct.pack(byte_order + "4d", 1.0, 2.0, 3.0, 4.0)
+    )
+    assert len(matrix) >= 44
+    with pytest.raises(InvalidAudioError):
+        decode(matrix)
+
+
 def test_duration_limit_rejects_one_extra_frame() -> None:
     encoded = encode_pcm16_wav(np.zeros(16_001, dtype=np.float32), 8_000)
     with pytest.raises(InvalidAudioError):
